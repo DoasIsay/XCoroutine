@@ -1,11 +1,12 @@
 #include <stdio.h>
+#include <sys/types.h>
 #include <sys/socket.h>
-#include <string.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <errno.h> 
 #include <time.h>
-
+#include <string.h>
 
 int main(int argvs, char *argv[])
 {

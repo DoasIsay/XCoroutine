@@ -1,5 +1,9 @@
 #include "socket.h"
 
+extern int waitOnRead(int fd);
+extern int waitOnWrite(int fd);
+
+namespace NET{
 int setNoBlock(int fd, int block) {
 	int flags;
 	if ((flags = fcntl(fd, F_GETFL)) == -1) {
@@ -27,7 +31,7 @@ int readn(int fd,char *buf, int len){
 			if(errno == EINTR)
 				continue;
 			else if(errno==EAGAIN){
-				schedule(Scheduler::READ);
+				waitOnRead(fd);
 				continue;
 			}else{
 				printf("read error:%s\n", strerror(errno));
@@ -51,7 +55,7 @@ int writen(int fd,char *buf, int len){
 			if(errno == EINTR)
 				continue;
 			else if(errno==EAGAIN){
-				schedule(Scheduler::WRITE);
+				waitOnWrite(fd);
 				continue;
 			}else{
 				printf("write error:%s\n", strerror(errno));
@@ -63,4 +67,26 @@ int writen(int fd,char *buf, int len){
 			return writes;
 		}
 	}
+}
+
+int accept(int fd){
+	int serverFd = fd;
+	int clientFd = 0;
+	while(1){
+		if((clientFd = accept(serverFd, (struct sockaddr*)NULL, NULL)) <= 0){
+			if(errno==EAGAIN){
+				printf("%d schedule to next\n", getpid());
+				waitOnRead(serverFd);
+				continue;
+			}else{
+				printf("accept error: %s\n", strerror(errno));
+				return -1;
+			}	
+		}
+		else{
+			setNoBlock(clientFd);
+			return clientFd;
+		}
+	}
+}
 }

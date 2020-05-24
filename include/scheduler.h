@@ -2,13 +2,14 @@
 #define __SCHEDULER__
 #include <stdio.h>
 #include <sys/epoll.h>
-#include <sys/types.h>
-#include <unistd.h>
 #include <string.h>
 #include <errno.h>
-#include <stdlib.h>
-#include "setjmp.h"
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <assert.h>
+#include "context.h"
 #include "coroutine.h"
+#include "queue.h"
 
 extern __thread Coroutine *current;
 
@@ -17,8 +18,6 @@ void envDestroy();
 
 void startCoroutine();
 
-int schedule(int type,int timeout=1000);
-
 class Scheduler{
 private:
 	int epollFd;
@@ -26,27 +25,37 @@ private:
 	int firedEventSize;
 	int maxEventSize;
 	epoll_event *events;
+	Queue<Coroutine*> runQue;
 	
 public:
-	static const int READ=EPOLLIN, WRITE=EPOLLOUT, NEXT=101;
+	static const int READ=EPOLLIN, WRITE=EPOLLOUT;
 	Scheduler(int max);
 
 	Coroutine* next();
 
-	int save(int type, int timeout);
-	int restore(int timeOut);
-
-	int schedule(int type, int timeout){
-		if(type == NEXT){
-			restore(timeout);
-		}
-		if(save(type,timeout) == 1){
-			return 1;
-		}
-		return 0;
+	int wait(int fd, int type);
+	
+	void addToRunQue(Coroutine* co){
+		runQue.push(co);
 	}
+	Coroutine* removeFromRunQue(){
+		return runQue.pop();
+	}
+	
+	void timerInterrupt();
+	
+	int schedule();
 	
 	~Scheduler();
 
 };
+
+extern __thread Scheduler *scheduler;
+
+int waitOnRead(int fd);
+int waitOnWrite(int fd);
+
+void schedule();
+
+#define yield do{ scheduler->wait(-1, -1); }while(0)
 #endif

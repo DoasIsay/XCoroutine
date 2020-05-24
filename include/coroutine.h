@@ -3,7 +3,9 @@
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
-#include "setjmp.h"
+#include <unistd.h>
+#include <sys/syscall.h>
+#include "context.h"
 
 typedef int(*Routine)(void *);
 void createCoroutine(int (*routine)(void *),void *arg);
@@ -12,13 +14,12 @@ class Coroutine{
 private:
 	friend void startCoroutine();
 	static int coroutines;
-	int type;
 	int fd;
 	Routine routine;
 	void *stack;
 	int stackSize;
 	void *arg;
-	JmpBuf context;
+	Context context;
 
 public:
 	
@@ -26,19 +27,19 @@ public:
 	
 	int setStackSize(int size);
 
-	int setJmp(JmpBuf &jmpBuf){
-		context = jmpBuf;
+	int setContext(Context &cxt){
+		context = cxt;
 	}
-	JmpBuf* getJmp(){
+	
+	Context* getContext(){
 		return &context;
 	}
-	
-	void setType(int type){
-		this->type = type;
+
+	void setFd(int fd){
+		this->fd = fd;
 	}
-	
 	int getFd(){
-		return this->fd;
+		return fd;
 	}
 
 	static int getCoroutines(){
@@ -51,4 +52,5 @@ public:
 };
 
 void createCoroutine(int (*routine)(void *),void *arg);
+
 #endif
