@@ -8,9 +8,9 @@
 #include <string.h>
 
 namespace NET{
-	int setNoBlock(int fd, int block=1);
-	int readn(int fd,char *buf, int len);
-	int writen(int fd,char *buf, int len);
-	int accept(int fd);
+    int setNoBlock(int fd, int block=1);
+    int readn(int fd,char *buf, int len);
+    int writen(int fd,char *buf, int len);
+    int accept(int fd);
 }
 #endif

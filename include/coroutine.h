@@ -12,43 +12,43 @@ void createCoroutine(int (*routine)(void *),void *arg);
 
 class Coroutine{
 private:
-	friend void startCoroutine();
-	static int coroutines;
-	int fd;
-	Routine routine;
-	void *stack;
-	int stackSize;
-	void *arg;
-	Context context;
+    friend void startCoroutine();
+    static int coroutines;
+    int fd;
+    Routine routine;
+    void *stack;
+    int stackSize;
+    void *arg;
+    Context context;
 
 public:
-	
-	Coroutine(int (*routine)(void *), void *arg);
-	
-	int setStackSize(int size);
+    
+    Coroutine(int (*routine)(void *), void *arg);
+    
+    int setStackSize(int size);
 
-	int setContext(Context &cxt){
-		context = cxt;
-	}
-	
-	Context* getContext(){
-		return &context;
-	}
+    int setContext(Context &cxt){
+        context = cxt;
+    }
+    
+    Context* getContext(){
+        return &context;
+    }
 
-	void setFd(int fd){
-		this->fd = fd;
-	}
-	int getFd(){
-		return fd;
-	}
+    void setFd(int fd){
+        this->fd = fd;
+    }
+    int getFd(){
+        return fd;
+    }
 
-	static int getCoroutines(){
-		return coroutines;
-	}
-	
-	void start();
+    static int getCoroutines(){
+        return coroutines;
+    }
+    
+    void start();
 
-	~Coroutine();
+    ~Coroutine();
 };
 
 void createCoroutine(int (*routine)(void *),void *arg);

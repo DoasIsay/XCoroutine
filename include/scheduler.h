@@ -20,33 +20,33 @@ void startCoroutine();
 
 class Scheduler{
 private:
-	int epollFd;
-	int nextEventIdx;
-	int firedEventSize;
-	int maxEventSize;
-	epoll_event *events;
-	Queue<Coroutine*> runQue;
-	
+    int epollFd;
+    int nextEventIdx;
+    int firedEventSize;
+    int maxEventSize;
+    epoll_event *events;
+    Queue<Coroutine*> runQue;
+    
 public:
-	static const int READ=EPOLLIN, WRITE=EPOLLOUT;
-	Scheduler(int max);
+    static const int READ=EPOLLIN, WRITE=EPOLLOUT;
+    Scheduler(int max);
 
-	Coroutine* next();
+    Coroutine* next();
 
-	int wait(int fd, int type);
-	
-	void addToRunQue(Coroutine* co){
-		runQue.push(co);
-	}
-	Coroutine* removeFromRunQue(){
-		return runQue.pop();
-	}
-	
-	void timerInterrupt();
-	
-	int schedule();
-	
-	~Scheduler();
+    int wait(int fd, int type);
+    
+    void addToRunQue(Coroutine* co){
+        runQue.push(co);
+    }
+    Coroutine* removeFromRunQue(){
+        return runQue.pop();
+    }
+    
+    void timerInterrupt();
+    
+    int schedule();
+    
+    ~Scheduler();
 
 };
 
