@@ -1,5 +1,8 @@
 #include <iostream>
 #include "scheduler.h"
+#include <signal.h>
+
+extern bool isExit;
 using namespace std;
 
 int test0(void *){
@@ -20,11 +23,17 @@ int test2(void *){
     cout<<"test2 2"<<endl;
 }
 
+void quit(int signo)
+{
+	isExit = true;
+}
+
 int main(){
+    signal(SIGTERM,quit);
     envInitialize();
     createCoroutine(test0, NULL);
     createCoroutine(test1, NULL);
     createCoroutine(test2, NULL);
-    schedule();
+    yield;
     envDestroy();
 }

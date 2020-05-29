@@ -13,10 +13,7 @@
 
 extern __thread Coroutine *current;
 
-void envInitialize();
-void envDestroy();
-
-void startCoroutine();
+extern __thread std::set<int> *cidSet;
 
 class Scheduler{
 private:
@@ -52,10 +49,20 @@ public:
 
 extern __thread Scheduler *scheduler;
 
+void envInitialize();
+void envDestroy();
+
+void schedule();
+void startCoroutine();
+
 int waitOnRead(int fd);
 int waitOnWrite(int fd);
 
-void schedule();
-
-#define yield do{ scheduler->wait(-1, -1); }while(0)
+#define yield\
+	do{\
+		if(current == NULL){\
+			current = new Coroutine(0);\
+		}\
+		scheduler->wait(-1, -1);\
+	}while(0)
 #endif

@@ -1,5 +1,7 @@
 #include "socket.h"
 
+extern bool isExit;
+
 extern int waitOnRead(int fd);
 extern int waitOnWrite(int fd);
 
@@ -30,6 +32,8 @@ int readn(int fd,char *buf, int len){
         if(ret < 0){
             if(errno == EINTR)
                 continue;
+            else if(isExit)
+                return 0;
             else if(errno==EAGAIN){
                 waitOnRead(fd);
                 continue;
@@ -54,6 +58,8 @@ int writen(int fd,char *buf, int len){
         if(ret < 0){
             if(errno == EINTR)
                 continue;
+            else if(isExit)
+                return 0;
             else if(errno==EAGAIN){
                 waitOnWrite(fd);
                 continue;
@@ -75,10 +81,11 @@ int accept(int fd){
     while(1){
         if((clientFd = accept(serverFd, (struct sockaddr*)NULL, NULL)) <= 0){
             if(errno==EAGAIN){
-                printf("%d schedule to next\n", getpid());
                 waitOnRead(serverFd);
                 continue;
-            }else{
+            }else if(isExit)
+                return 0;
+            else{
                 printf("accept error: %s\n", strerror(errno));
                 return -1;
             }   

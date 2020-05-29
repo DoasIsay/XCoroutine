@@ -14,5 +14,15 @@ extern "C"{
     int save(Context *cxt);
     void restore(Context *cxt);
 }
+/*
+void initCxt(Context &cxt){
+#ifdef __i386__
+		cxt.ebx=cxt.ecx=cxt.edx=cxt.ebp=cxt.esi=cxt.edi=0;
+#elif __x86_64__
+		cxt.rbx=cxt.rcx=cxt.rdx=cxt.rbp=cxt.rsi=cxt.r12=cxt.r13=cxt.r14=cxt.r15=0;
+#endif
+
+}
+*/
 #endif
 

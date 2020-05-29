@@ -4,40 +4,50 @@
 #include <errno.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include "coroutine.h"
+#include <signal.h>
 #include "scheduler.h"
 #include "socket.h"
+
+extern bool isExit;
 
 int socketHandleCoroutine(void *arg){
     int fd = *(int*)arg;
     char buf[256];
-    printf("%d start socketHandleCoroutine fd: %d\n", syscall(__NR_gettid), fd);
+    printf("%d:%d start socketHandleCoroutine fd: %d\n", gettid(), getcid(), fd);
 
     int ret = 0;
-    while(1){
+    while(!isExit){
         ret = NET::readn(fd, buf, 19);
         if(ret <= 0)
             break;
-        printf("fd: %d, recv %s\n", fd, buf);
+        printf("%d:%d fd: %d, recv %s\n", gettid(), getcid(), fd, buf);
         NET::writen(fd, buf, 19);
     }
     close(fd);
-    return ret;
+    return 0;
 }
 
 int acceptCoroutine(void *arg){
     int serverFd=*(int*)arg;
     int clientFd = 0;
 
-    while(1){
+    while(!isExit){
         if((clientFd = NET::accept(serverFd)) > 2){
-            printf("%d accept fd %d\n", syscall(__NR_gettid), clientFd);
+            printf("%d:%d accept fd %d\n", gettid(), getcid(), clientFd);
             createCoroutine(socketHandleCoroutine, &clientFd);
         }
     }
 }
 
+void quit(int signo)
+{
+	isExit = true;
+}
+
 int main(int argc, char** argv){
+    
+    signal(SIGTERM,quit);
+    
     int  serverFd, connfd;
     struct sockaddr_in  servaddr;
 
@@ -58,12 +68,11 @@ int main(int argc, char** argv){
         printf("listen socket error: %s\n", strerror(errno));
         return 0;
     }
-
     NET::setNoBlock(serverFd);
 
     envInitialize();
     createCoroutine(acceptCoroutine, &serverFd);
-    schedule();
+    yield;
     envDestroy();
 
     close(serverFd);

@@ -1,6 +1,10 @@
 #include "scheduler.h"
 
+bool isExit = false;
 const int INTHZ = 10;
+
+extern int getcid();
+extern int gettid();
 
 Scheduler::Scheduler(int max =1024){
     nextEventIdx = 0;
@@ -19,63 +23,56 @@ Coroutine* Scheduler::next(){
 }
 
 int Scheduler::wait(int fd, int type){
-    int ret = 0;
 
-    if(current != NULL){
-        ret = save(current->getContext());
-        if(ret) 
-            return 1;
-    }else 
-        goto Sched;
+    assert(current != NULL);
+    if(save(current->getContext()))
+        return 1;
     
-    if(fd != -1){
-        if(current->getFd() == -2) 
-            current->setFd(fd);
+    if(fd > 0){
+        int ret = 0;
         epoll_event event;
-        event.events = type;
+        event.events = type|EPOLLONESHOT;
         event.data.ptr = (void*)current;
-        ret = epoll_ctl(epollFd, EPOLL_CTL_ADD, fd, &event);
-        if(ret == -1){
+        if(current->getFd() < 0){
+            current->setFd(fd);
+            ret = epoll_ctl(epollFd, EPOLL_CTL_ADD, fd, &event);
+        }else{
+            ret = epoll_ctl(epollFd, EPOLL_CTL_MOD, fd, &event);
+        }
+        if(ret < 0){
             printf("epoll add fd:%d error:%s  \n", fd, strerror(errno));
             return -1;
         }
     }else{
         addToRunQue(current);
     }
+
     current = NULL;
-    
-    Sched:
     schedule();
 }
 
 void Scheduler::timerInterrupt(){
     if(!runQue.empty()){
         current = removeFromRunQue();
-        assert(current != NULL);
-        restore(current->getContext());
+        if(current->getcid()!=0 || (cidSet->size() == 1 && isExit))
+            restore(current->getContext());
+        else
+            addToRunQue(current);
     }
 }
 
 int Scheduler::schedule(){
-    int ret = 0;
-
     while((current = next()) == NULL){
         firedEventSize =  epoll_wait(epollFd, events, maxEventSize, INTHZ);
-        if(firedEventSize == 0) 
+        if(firedEventSize == 0)
             timerInterrupt();
     }
-    ret = epoll_ctl(epollFd, EPOLL_CTL_DEL, current->getFd(), NULL);
-    if(ret == -1){
-        printf("epoll del fd:%d error:%s  \n",current->getFd(),strerror(errno));
-        return -1;
-    }
-    
-    assert(current != NULL);
     restore(current->getContext());
 }
 
 Scheduler::~Scheduler(){
     free(events);
+    close(epollFd);
 }
 
 __thread Scheduler *scheduler = NULL;
@@ -84,21 +81,27 @@ void envInitialize(){
     if(scheduler == NULL){
         scheduler = new Scheduler();
     }
-    printf("initialize scheduler\n");
+    if(cidSet == NULL){
+        cidSet = new std::set<int>;
+    }
+    printf("env initialize\n");
 }
 
 void envDestroy(){
     if(scheduler != NULL){
         delete scheduler;
     }
-    printf("destory scheduler\n");
+    if(cidSet != NULL){
+        delete cidSet;
+    }
+    printf("env destory\n");
 }
 
 void startCoroutine(){
     switch(current->routine(current->arg)){
-        case -1:printf("%d coroutine fd:%d exit fail\n", syscall(__NR_gettid), current->fd);break;
+        case -1:printf("%d:%d coroutine fd:%d exit fail\n", gettid(), getcid(), current->fd);break;
         case  0:
-        case  1:printf("%d coroutine fd:%d exit sucess\n", syscall(__NR_gettid), current->fd);break;
+        case  1:printf("%d:%d coroutine fd:%d exit sucess\n", gettid(), getcid(), current->fd);break;
     }
 
     if(current!=NULL){
@@ -106,7 +109,7 @@ void startCoroutine(){
         current = NULL;
     }
     
-    printf("%d schedule to next\n" ,syscall(__NR_gettid));
+    printf("%d schedule to next\n", gettid());
     schedule();
 }
 

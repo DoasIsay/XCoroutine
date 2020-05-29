@@ -16,12 +16,12 @@ public:
 template<typename T>
 class Queue{
 private:
-    int size;
+    int sizes;
     Node<T> *head, *tail;
     
 public:
     Queue(){
-        size = 0;
+        sizes = 0;
         head = tail = NULL;
     }
     
@@ -35,7 +35,7 @@ public:
             tmp->next = head;
             head = tmp;
         }
-        size++;
+        sizes++;
     }
 
     //the item is a point,use this fun is better, but it may maked two times obj copy
@@ -49,7 +49,7 @@ public:
                 tail->next = NULL;
             else
                 head = NULL;
-            size--;
+            sizes--;
             return tmpItem;
         }else{
             throw "Queue is empty";
@@ -71,8 +71,12 @@ public:
         }
     }
 
+	int size(){
+		return sizes;
+	}
+	
     int empty(){
-        return size == 0;
+        return sizes == 0;
     }
 };
 #endif
