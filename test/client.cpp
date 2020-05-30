@@ -33,6 +33,7 @@ int main(int argvs, char *argv[])
         printf("connect fail error:%s \n",strerror(errno));
         return -1;
     }
+    int clientFd = accept(fd, (struct sockaddr*)NULL, NULL);
     char buf[]="I am coming,,,,,,,";
     printf("%d\n",sizeof(buf));
     while(true){

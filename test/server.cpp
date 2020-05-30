@@ -8,7 +8,7 @@
 #include "scheduler.h"
 #include "socket.h"
 
-extern bool isExit;
+bool isExit = false;
 
 int socketHandleCoroutine(void *arg){
     int fd = *(int*)arg;
@@ -17,11 +17,11 @@ int socketHandleCoroutine(void *arg){
 
     int ret = 0;
     while(!isExit){
-        ret = NET::readn(fd, buf, 19);
+        ret = net::readn(fd, buf, 19);
         if(ret <= 0)
             break;
         printf("%d:%d fd: %d, recv %s\n", gettid(), getcid(), fd, buf);
-        NET::writen(fd, buf, 19);
+        net::writen(fd, buf, 19);
     }
     close(fd);
     return 0;
@@ -32,7 +32,7 @@ int acceptCoroutine(void *arg){
     int clientFd = 0;
 
     while(!isExit){
-        if((clientFd = NET::accept(serverFd)) > 2){
+        if((clientFd = net::accept(serverFd)) > 2){
             printf("%d:%d accept fd %d\n", gettid(), getcid(), clientFd);
             createCoroutine(socketHandleCoroutine, &clientFd);
         }
@@ -68,7 +68,7 @@ int main(int argc, char** argv){
         printf("listen socket error: %s\n", strerror(errno));
         return 0;
     }
-    NET::setNoBlock(serverFd);
+    net::setNoBlock(serverFd);
 
     envInitialize();
     createCoroutine(acceptCoroutine, &serverFd);
