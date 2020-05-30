@@ -2,40 +2,31 @@
 
 extern bool isExit;
 
-extern int waitOnRead(int fd);
-extern int waitOnWrite(int fd);
+namespace net{
 
-namespace NET{
 int setNoBlock(int fd, int block) {
-    int flags;
+    int flags;    
     if ((flags = fcntl(fd, F_GETFL)) == -1) {
         printf("fcntl get error %s", strerror(errno));
         return -1;
     }
-
     if(block)
         flags |= O_NONBLOCK;
     else
         flags &= ~O_NONBLOCK;
-
     if (fcntl(fd, F_SETFL, flags) == -1) {
-        printf("fcntl set error %s", strerror(errno));
-        return -1;
+       printf("fcntl set error %s", strerror(errno));
+       return -1;
     }
     return 0;
 }
 
 int readn(int fd,char *buf, int len){
     int reads = 0;
-    while(1){
+    while(!isExit){
         int ret = read(fd, buf+reads, len-reads);
         if(ret < 0){
-            if(errno == EINTR)
-                continue;
-            else if(isExit)
-                return 0;
-            else if(errno==EAGAIN){
-                waitOnRead(fd);
+            if(errno == EINTR || errno==EAGAIN){
                 continue;
             }else{
                 printf("read error:%s\n", strerror(errno));
@@ -53,15 +44,10 @@ int readn(int fd,char *buf, int len){
 
 int writen(int fd,char *buf, int len){
     int writes = 0;
-    while(1){
+    while(!isExit){
         int ret = write(fd, buf+writes, len-writes);
         if(ret < 0){
-            if(errno == EINTR)
-                continue;
-            else if(isExit)
-                return 0;
-            else if(errno==EAGAIN){
-                waitOnWrite(fd);
+            if(errno == EINTR || errno==EAGAIN){
                 continue;
             }else{
                 printf("write error:%s\n", strerror(errno));
@@ -78,14 +64,11 @@ int writen(int fd,char *buf, int len){
 int accept(int fd){
     int serverFd = fd;
     int clientFd = 0;
-    while(1){
-        if((clientFd = accept(serverFd, (struct sockaddr*)NULL, NULL)) <= 0){
-            if(errno==EAGAIN){
-                waitOnRead(serverFd);
+    while(!isExit){
+        if((clientFd = accept(serverFd, (struct sockaddr *)NULL, NULL)) <= 0){
+            if(errno == EINTR || errno==EAGAIN){
                 continue;
-            }else if(isExit)
-                return 0;
-            else{
+            }else{
                 printf("accept error: %s\n", strerror(errno));
                 return -1;
             }   

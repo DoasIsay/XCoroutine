@@ -64,7 +64,7 @@ public:
             delete tmp;
             if(tail != NULL)
                 tail->next = NULL;
-            size--;
+            sizes--;
             return 0;
         }else{
             return -1;
