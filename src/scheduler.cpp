@@ -1,6 +1,5 @@
 #include "scheduler.h"
 
-bool isExit = false;
 const int INTHZ = 10;
 
 extern int getcid();
@@ -54,7 +53,7 @@ int Scheduler::wait(int fd, int type){
 void Scheduler::timerInterrupt(){
     if(!runQue.empty()){
         current = removeFromRunQue();
-        if(current->getcid()!=0 || (cidSet->size() == 1 && isExit))
+        if(current->getcid()!=0 || (cidSet->size() == 1))
             restore(current->getContext());
         else
             addToRunQue(current);

@@ -1,8 +1,6 @@
 #include <iostream>
 #include "scheduler.h"
 #include <signal.h>
-
-extern bool isExit;
 using namespace std;
 
 int test0(void *){
@@ -21,11 +19,6 @@ int test2(void *){
     cout<<"test2 2"<<endl;
     yield;
     cout<<"test2 2"<<endl;
-}
-
-void quit(int signo)
-{
-	isExit = true;
 }
 
 int main(){

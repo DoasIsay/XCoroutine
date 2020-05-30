@@ -14,8 +14,8 @@ void createCoroutine(int (*routine)(void *),void *arg);
 
 class Coroutine{
 private:
-	const static int STACKSIZE = 4096;
-	const static int MAXCOS = 65536*128;
+    const static int STACKSIZE = 4096;
+    const static int MAXCOS = 65536*128;
     friend void startCoroutine();
     static __thread  int coroutines;
     int fd;
@@ -32,10 +32,6 @@ public:
     Coroutine(int (*routine)(void *), void *arg);
 	
     Coroutine(int cid);
-	
-	Coroutine(){
-		cid = allocCid();
-	}
 	
     int setStackSize(int size);
 
@@ -60,11 +56,11 @@ public:
     
     void start();
 
-	int allocCid();
+    int allocCid();
 
-	int getcid(){
-		return cid;
-	}
+    int getcid(){
+        return cid;
+    }
 	
     ~Coroutine();
 };

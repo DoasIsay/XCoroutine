@@ -1,7 +1,5 @@
 #include "coroutine.h"
 
-extern bool isExit;
-
 extern void addToRunQue(Coroutine *co);
 extern void startCoroutine();
 
@@ -15,11 +13,11 @@ Coroutine::Coroutine(int (*routine)(void *), void *arg){
     stack = NULL;
     stackSize = STACKSIZE;
     coroutines++;
-    cid = allocCid();
 }
 Coroutine::Coroutine(int cid){
       this->cid = cid;
       cidSet->insert(cid);
+      coroutines++;
  }
 
 int Coroutine::setStackSize(int size){
@@ -27,6 +25,9 @@ int Coroutine::setStackSize(int size){
 }
 
 void Coroutine::start(){
+    cid = allocCid();
+    if(cid < 0)
+        return;
     save(&context);
     context.pc = (long)startCoroutine;
     stack = malloc(stackSize);
@@ -38,6 +39,10 @@ void Coroutine::start(){
 int Coroutine::allocCid(){
     do{
         nextCid++;
+        if(coroutines >= MAXCOS){
+            printf("exceed max coroutines %d\n", MAXCOS);
+            return -1;
+        }
         if(nextCid >= MAXCOS)
             nextCid = 1;
     }while(cidSet->find(nextCid) != cidSet->end());
