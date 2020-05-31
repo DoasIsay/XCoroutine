@@ -4,6 +4,7 @@ const int INTHZ = 10;
 
 extern int getcid();
 extern int gettid();
+extern __thread std::unordered_map<int, Coroutine*> *corMap;
 
 Scheduler::Scheduler(int max =1024){
     nextEventIdx = 0;
@@ -46,11 +47,23 @@ int Scheduler::wait(int fd, int type){
     schedule();
 }
 
+void Scheduler::wakeup(){
+    int signal = current->getSignal();
+    if(signal != 0){
+        for(int signo=1; signo<32; signo++){
+            if(signal&signo)
+                Coroutine::signalHandler[signo](signo);
+        }
+        current->setSignal();
+    }
+    restore(current->getContext());
+}
+
 void Scheduler::timerInterrupt(){
     if(!runQue.empty()){
         current = delFromRunQue();
-        if(current->getcid()!=0 || (cidSet->size() == 1))
-            restore(current->getContext());
+        if(current->getcid()!=0 || (corMap->size() == 1))
+            wakeup();
         else
             addToRunQue(current);
     }
@@ -62,7 +75,7 @@ int Scheduler::schedule(){
         if(firedEventSize == 0)
             timerInterrupt();
     }
-    restore(current->getContext());
+    wakeup();
 }
 
 Scheduler::~Scheduler(){
@@ -76,8 +89,9 @@ void envInitialize(){
     if(scheduler == NULL){
         scheduler = new Scheduler();
     }
-    if(cidSet == NULL){
-        cidSet = new std::set<int>;
+
+    if(corMap== NULL){
+        corMap= new std::unordered_map<int, Coroutine*>;
     }
     printf("env initialize\n");
 }
@@ -86,8 +100,11 @@ void envDestroy(){
     if(scheduler != NULL){
         delete scheduler;
     }
-    if(cidSet != NULL){
-        delete cidSet;
+    if(corMap!= NULL){
+        delete corMap;
+    }
+    if(Coroutine::signalHandler != NULL){
+        delete Coroutine::signalHandler;
     }
     printf("env destory\n");
 }

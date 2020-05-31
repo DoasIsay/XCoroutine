@@ -4,7 +4,7 @@ extern void addToRunQue(Coroutine *co);
 extern void startCoroutine();
 
 __thread Coroutine *current = NULL;
-__thread std::set<int> *cidSet = NULL;
+__thread std::unordered_map<int, Coroutine*> *corMap = NULL;
 
 Coroutine::Coroutine(int (*routine)(void *), void *arg){
     this->routine = routine;
@@ -16,8 +16,7 @@ Coroutine::Coroutine(int (*routine)(void *), void *arg){
 }
 Coroutine::Coroutine(int cid){
       this->cid = cid;
-      cidSet->insert(cid);
-      coroutines++;
+      corMap->insert(std::make_pair(cid, this));
  }
 
 int Coroutine::setStackSize(int size){
@@ -33,6 +32,7 @@ void Coroutine::start(){
     stack = malloc(stackSize);
     assert(stack != NULL);
     context.sp = (long)((char*)stack + stackSize);
+    corMap->insert(std::make_pair(cid, this));
     addToRunQue(this);
 }
 
@@ -45,20 +45,20 @@ int Coroutine::allocCid(){
         }
         if(nextCid >= MAXCOS)
             nextCid = 1;
-    }while(cidSet->find(nextCid) != cidSet->end());
-    cidSet->insert(nextCid);
+    }while(corMap->find(nextCid) != corMap->end());
     return nextCid;
 }
 
 Coroutine::~Coroutine(){
     if(stack != NULL)
         free(stack);
-    coroutines--;
-    cidSet->erase(cid);
+    corMap->erase(cid);
 }
 
 __thread int Coroutine::coroutines = 0;
 __thread int Coroutine::nextCid = 0;
+
+SignalHandler* Coroutine::signalHandler = new SignalHandler[32];
 
 void createCoroutine(int (*routine)(void *),void *arg){
     Coroutine *co= new Coroutine(routine,arg);

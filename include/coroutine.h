@@ -8,9 +8,12 @@
 #include "context.h"
 #include <set>
 #include <assert.h>
+#include <unordered_map>
 
 typedef int(*Routine)(void *);
 void createCoroutine(int (*routine)(void *),void *arg);
+
+typedef void (*SignalHandler)(int);
 
 class Coroutine{
 private:
@@ -27,6 +30,10 @@ private:
     Context context;
 	int cid;
 	static __thread int nextCid;
+    int signal;
+
+public:
+    static SignalHandler *signalHandler;
 
 public:
     
@@ -69,7 +76,19 @@ public:
     int getcid(){
         return cid;
     }
-	
+
+    int sendSignal(int signo){
+        signal|=signo;
+    }
+
+    int getSignal(){
+        return signal;
+    }
+
+    void setSignal(){
+        signal = 0;
+    }
+    
     ~Coroutine();
 };
 

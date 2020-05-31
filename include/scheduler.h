@@ -13,8 +13,6 @@
 
 extern __thread Coroutine *current;
 
-extern __thread std::set<int> *cidSet;
-
 class Scheduler{
 private:
     int epollFd;
@@ -62,6 +60,8 @@ public:
     void timerInterrupt();
     
     int schedule();
+
+    void wakeup();
     
     ~Scheduler();
 
