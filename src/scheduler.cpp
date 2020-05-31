@@ -28,20 +28,16 @@ int Scheduler::wait(int fd, int type){
         return 1;
     
     if(fd > 0){
-        int ret = 0;
-        epoll_event event;
-        event.events = type|EPOLLONESHOT;
-        event.data.ptr = (void*)current;
         if(current->getFd() < 0){
             current->setFd(fd);
-            ret = epoll_ctl(epollFd, EPOLL_CTL_ADD, fd, &event);
-        }else{
-            ret = epoll_ctl(epollFd, EPOLL_CTL_MOD, fd, &event);
-        }
-        if(ret < 0){
-            printf("epoll add fd:%d error:%s  \n", fd, strerror(errno));
-            return -1;
-        }
+            current->setType(type);
+            eventAdd(fd, type);
+        }else if(current->getType() != type){
+            current->setType(type);
+            eventMod(fd, type);
+        }else if(type == WRITE)
+            eventMod(fd, type);
+            
     }else{
         addToRunQue(current);
     }
@@ -52,7 +48,7 @@ int Scheduler::wait(int fd, int type){
 
 void Scheduler::timerInterrupt(){
     if(!runQue.empty()){
-        current = removeFromRunQue();
+        current = delFromRunQue();
         if(current->getcid()!=0 || (cidSet->size() == 1))
             restore(current->getContext());
         else
@@ -104,6 +100,7 @@ void startCoroutine(){
     }
 
     if(current!=NULL){
+        scheduler->eventDel(current->getFd(), current->getType());
         delete current;
         current = NULL;
     }

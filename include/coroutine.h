@@ -19,6 +19,7 @@ private:
     friend void startCoroutine();
     static __thread  int coroutines;
     int fd;
+    int type;
     Routine routine;
     void *stack;
     int stackSize;
@@ -50,6 +51,13 @@ public:
         return fd;
     }
 
+    int setType(int type){
+        this->type = type;
+    }
+    int getType(){
+        return type;
+    }
+    
     static int getCoroutines(){
         return coroutines;
     }

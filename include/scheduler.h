@@ -29,13 +29,33 @@ public:
     Scheduler(int max);
 
     Coroutine* next();
+    
+    int eventCtl(int fd, int type, int mode){
+        epoll_event event;
+        event.events = type|EPOLLET;
+        if(type == WRITE)   event.events |= EPOLLONESHOT;
+        event.data.ptr = (void*)current;
+        return epoll_ctl(epollFd, mode, fd, &event);
+    }
+    
+    int eventAdd(int fd, int type){
+        return eventCtl(fd, type, EPOLL_CTL_ADD);
+    }
+    
+    int eventDel(int fd, int type){
+        return eventCtl(fd, type, EPOLL_CTL_DEL);
+    }
+
+    int eventMod(int fd, int type){
+        return eventCtl(fd, type, EPOLL_CTL_MOD);
+    }
 
     int wait(int fd, int type);
     
     void addToRunQue(Coroutine* co){
         runQue.push(co);
     }
-    Coroutine* removeFromRunQue(){
+    Coroutine* delFromRunQue(){
         return runQue.pop();
     }
     
