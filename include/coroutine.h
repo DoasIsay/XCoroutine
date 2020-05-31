@@ -11,29 +11,22 @@
 #include <unordered_map>
 
 typedef int(*Routine)(void *);
-void createCoroutine(int (*routine)(void *),void *arg);
-
-typedef void (*SignalHandler)(int);
 
 class Coroutine{
 private:
-    const static int STACKSIZE = 4096;
-    const static int MAXCOS = 65536*128;
     friend void startCoroutine();
-    static __thread  int coroutines;
+    
     int fd;
     int type;
+    
     Routine routine;
     void *stack;
     int stackSize;
     void *arg;
     Context context;
 	int cid;
-	static __thread int nextCid;
+    
     int signal;
-
-public:
-    static SignalHandler *signalHandler;
 
 public:
     
@@ -65,13 +58,7 @@ public:
         return type;
     }
     
-    static int getCoroutines(){
-        return coroutines;
-    }
-    
     void start();
-
-    int allocCid();
 
     int getcid(){
         return cid;

@@ -6,18 +6,37 @@ extern void startCoroutine();
 __thread Coroutine *current = NULL;
 __thread std::unordered_map<int, Coroutine*> *corMap = NULL;
 
+const static int STACKSIZE = 4096;
+const static int MAXCOS = 65536*128;
+
+static int allocCid(){
+    static __thread int nextCid = 0;
+    do{
+        nextCid++;
+        if(corMap->size() >= MAXCOS){
+            printf("exceed max coroutines %d\n", MAXCOS);
+            return -1;
+        }
+        if(nextCid >= MAXCOS)
+            nextCid = 1;
+    }while(corMap->find(nextCid) != corMap->end());
+    return nextCid;
+}
+
 Coroutine::Coroutine(int (*routine)(void *), void *arg){
-    this->routine = routine;
-    this->arg = arg;
     fd = -1;
     stack = NULL;
+    this->arg = arg;
+    this->routine = routine;
     stackSize = STACKSIZE;
-    coroutines++;
+    signal = 0;
 }
+
 Coroutine::Coroutine(int cid){
-      this->cid = cid;
-      corMap->insert(std::make_pair(cid, this));
- }
+    this->cid = cid;
+    signal = 0;
+    corMap->insert(std::make_pair(cid, this));
+}
 
 int Coroutine::setStackSize(int size){
     this->stackSize = size;
@@ -29,24 +48,13 @@ void Coroutine::start(){
         return;
     save(&context);
     context.pc = (long)startCoroutine;
+    
     stack = malloc(stackSize);
     assert(stack != NULL);
+    
     context.sp = (long)((char*)stack + stackSize);
     corMap->insert(std::make_pair(cid, this));
     addToRunQue(this);
-}
-
-int Coroutine::allocCid(){
-    do{
-        nextCid++;
-        if(coroutines >= MAXCOS){
-            printf("exceed max coroutines %d\n", MAXCOS);
-            return -1;
-        }
-        if(nextCid >= MAXCOS)
-            nextCid = 1;
-    }while(corMap->find(nextCid) != corMap->end());
-    return nextCid;
 }
 
 Coroutine::~Coroutine(){
@@ -54,11 +62,6 @@ Coroutine::~Coroutine(){
         free(stack);
     corMap->erase(cid);
 }
-
-__thread int Coroutine::coroutines = 0;
-__thread int Coroutine::nextCid = 0;
-
-SignalHandler* Coroutine::signalHandler = new SignalHandler[32];
 
 void createCoroutine(int (*routine)(void *),void *arg){
     Coroutine *co= new Coroutine(routine,arg);

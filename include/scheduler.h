@@ -10,6 +10,7 @@
 #include "context.h"
 #include "coroutine.h"
 #include "queue.h"
+#include "csignal.h"
 
 extern __thread Coroutine *current;
 
@@ -61,6 +62,8 @@ public:
     
     int schedule();
 
+    void signalProcess();
+    
     void wakeup();
     
     ~Scheduler();

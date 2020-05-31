@@ -2,8 +2,7 @@
 
 const int INTHZ = 10;
 
-extern int getcid();
-extern int gettid();
+extern __thread SignalHandler *signalHandler;
 extern __thread std::unordered_map<int, Coroutine*> *corMap;
 
 Scheduler::Scheduler(int max =1024){
@@ -23,7 +22,6 @@ Coroutine* Scheduler::next(){
 }
 
 int Scheduler::wait(int fd, int type){
-
     assert(current != NULL);
     if(save(current->getContext()))
         return 1;
@@ -47,15 +45,20 @@ int Scheduler::wait(int fd, int type){
     schedule();
 }
 
-void Scheduler::wakeup(){
+void Scheduler::signalProcess(){
     int signal = current->getSignal();
     if(signal != 0){
         for(int signo=1; signo<32; signo++){
-            if(signal&signo)
-                Coroutine::signalHandler[signo](signo);
+            if(signal & (1 << signo))
+                assert(signalHandler[signo] != NULL);
+                signalHandler[signo](signo);
         }
         current->setSignal();
-    }
+    }    
+}
+
+void Scheduler::wakeup(){
+    signalProcess();
     restore(current->getContext());
 }
 
@@ -64,13 +67,16 @@ void Scheduler::timerInterrupt(){
         current = delFromRunQue();
         if(current->getcid()!=0 || (corMap->size() == 1))
             wakeup();
-        else
+        else{
             addToRunQue(current);
+            current = NULL;
+        }
     }
 }
 
 int Scheduler::schedule(){
-    while((current = next()) == NULL){
+    while(true){
+        if((current = next()) != NULL) break;
         firedEventSize =  epoll_wait(epollFd, events, maxEventSize, INTHZ);
         if(firedEventSize == 0)
             timerInterrupt();
@@ -79,19 +85,24 @@ int Scheduler::schedule(){
 }
 
 Scheduler::~Scheduler(){
-    free(events);
     close(epollFd);
+    free(events);
 }
 
 __thread Scheduler *scheduler = NULL;
+
+extern void signalHandlerInit();
 
 void envInitialize(){
     if(scheduler == NULL){
         scheduler = new Scheduler();
     }
-
-    if(corMap== NULL){
-        corMap= new std::unordered_map<int, Coroutine*>;
+    if(signalHandler == NULL){
+        signalHandler = new SignalHandler[32];
+        signalHandlerInit();
+    }
+    if(corMap == NULL){
+        corMap = new std::unordered_map<int, Coroutine*>;
     }
     printf("env initialize\n");
 }
@@ -100,11 +111,13 @@ void envDestroy(){
     if(scheduler != NULL){
         delete scheduler;
     }
-    if(corMap!= NULL){
-        delete corMap;
+    if(signalHandler != NULL){
+        delete signalHandler;
+        signalHandler = NULL;
     }
-    if(Coroutine::signalHandler != NULL){
-        delete Coroutine::signalHandler;
+    if(corMap != NULL){
+        delete corMap;
+        corMap = NULL;
     }
     printf("env destory\n");
 }
