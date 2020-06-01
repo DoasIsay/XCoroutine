@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2020, xie wenwu <870585356@qq.com>
+ * 
+ * All rights reserved.
+ */
+
 #ifndef __COROUTINE__
 #define __COROUTINE__
 #include <stdio.h>
@@ -9,13 +15,15 @@
 #include <set>
 #include <assert.h>
 #include <unordered_map>
+#include "log.h"
+
 
 typedef int(*Routine)(void *);
 
 class Coroutine{
 private:
     friend void startCoroutine();
-    
+    int epollFd;
     int fd;
     int type;
     
@@ -24,7 +32,7 @@ private:
     int stackSize;
     void *arg;
     Context context;
-	int cid;
+    int cid;
     
     int signal;
 
@@ -51,11 +59,20 @@ public:
         return fd;
     }
 
-    int setType(int type){
+    void setType(int type){
         this->type = type;
     }
+    
     int getType(){
         return type;
+    }
+
+    void setEpollFd(int eFd){
+        epollFd = eFd;
+    }
+
+    int getEpollFd(){
+        return epollFd;
     }
     
     void start();
@@ -79,7 +96,12 @@ public:
     ~Coroutine();
 };
 
+extern __thread Coroutine *current;
+
+extern __thread std::unordered_map<int, Coroutine*> *corMap;
+
 void createCoroutine(int (*routine)(void *),void *arg);
+
 int getcid();
 int gettid();
 #endif

@@ -1,25 +1,37 @@
+/*
+ * Copyright (c) 2020, xie wenwu <870585356@qq.com>
+ * 
+ * All rights reserved.
+ */
+
 #include "scheduler.h"
+#include "csignal.h"
+#include "log.h"
 
-const int INTHZ = 10;
-
-extern __thread SignalHandler *signalHandler;
-extern __thread std::unordered_map<int, Coroutine*> *corMap;
+#define INTHZ 10
 
 Scheduler::Scheduler(int max =1024){
     nextEventIdx = 0;
     firedEventSize = 0;
     maxEventSize = max;
-    epollFd = epoll_create(max);
+    epollFd = epollCreate(max);
     events = (epoll_event*)malloc(max*sizeof(epoll_event));
 }
 
-Coroutine* Scheduler::next(){
-    for(;nextEventIdx<firedEventSize;){
+inline Coroutine* Scheduler::next(){
+    if(nextEventIdx < firedEventSize){
         return (Coroutine*)(events[nextEventIdx++].data.ptr);
     }
     nextEventIdx=firedEventSize=0;
     return NULL;
 }
+
+#define setEvent(epollFd, fd, type)\
+    do{\
+        current->setFd(fd);\
+        current->setType(type);\
+        current->setEpollFd(epollFd);\
+    }while(0)
 
 int Scheduler::wait(int fd, int type){
     assert(current != NULL);
@@ -28,15 +40,12 @@ int Scheduler::wait(int fd, int type){
     
     if(fd > 0){
         if(current->getFd() < 0){
-            current->setFd(fd);
-            current->setType(type);
-            eventAdd(fd, type);
+            setEvent(epollFd, fd, type);
+            epollAddEvent(epollFd, fd, type);
         }else if(current->getType() != type){
-            current->setType(type);
-            eventMod(fd, type);
-        }else if(type == WRITE)
-            eventMod(fd, type);
-            
+            setEvent(epollFd, fd, type);
+            epollModEvent(epollFd, fd, type);
+        }
     }else{
         addToRunQue(current);
     }
@@ -47,22 +56,22 @@ int Scheduler::wait(int fd, int type){
 
 void Scheduler::signalProcess(){
     int signal = current->getSignal();
-    if(signal != 0){
-        for(int signo=1; signo<32; signo++){
-            if(signal & (1 << signo))
-                assert(signalHandler[signo] != NULL);
-                signalHandler[signo](signo);
+    if(signal == 0) return;
+    for(int signo=1; signo<32; signo++){
+        if(signal & (1 << signo)){
+            assert(signalHandler[signo] != NULL);
+            signalHandler[signo](signo);
         }
-        current->setSignal();
-    }    
+    }
+    current->setSignal();
 }
 
-void Scheduler::wakeup(){
+inline void Scheduler::wakeup(){
     signalProcess();
     restore(current->getContext());
 }
 
-void Scheduler::timerInterrupt(){
+inline void Scheduler::timerInterrupt(){
     if(!runQue.empty()){
         current = delFromRunQue();
         if(current->getcid()!=0 || (corMap->size() == 1))
@@ -77,7 +86,7 @@ void Scheduler::timerInterrupt(){
 int Scheduler::schedule(){
     while(true){
         if((current = next()) != NULL) break;
-        firedEventSize =  epoll_wait(epollFd, events, maxEventSize, INTHZ);
+        firedEventSize =  epollWait(epollFd, events, maxEventSize, INTHZ);
         if(firedEventSize == 0)
             timerInterrupt();
     }
@@ -91,66 +100,59 @@ Scheduler::~Scheduler(){
 
 __thread Scheduler *scheduler = NULL;
 
-extern void signalHandlerInit();
-
-void envInitialize(){
-    if(scheduler == NULL){
-        scheduler = new Scheduler();
-    }
-    if(signalHandler == NULL){
-        signalHandler = new SignalHandler[32];
-        signalHandlerInit();
-    }
-    if(corMap == NULL){
-        corMap = new std::unordered_map<int, Coroutine*>;
-    }
-    printf("env initialize\n");
-}
-
-void envDestroy(){
-    if(scheduler != NULL){
-        delete scheduler;
-    }
-    if(signalHandler != NULL){
-        delete signalHandler;
-        signalHandler = NULL;
-    }
-    if(corMap != NULL){
-        delete corMap;
-        corMap = NULL;
-    }
-    printf("env destory\n");
+void addToRunQue(Coroutine *co){
+    scheduler->addToRunQue(co);
 }
 
 void startCoroutine(){
     switch(current->routine(current->arg)){
-        case -1:printf("%d:%d coroutine fd:%d exit fail\n", gettid(), getcid(), current->fd);break;
+        case -1:log(ERROR, "fd %d exit fail", current->fd);break;
         case  0:
-        case  1:printf("%d:%d coroutine fd:%d exit sucess\n", gettid(), getcid(), current->fd);break;
+        case  1:log(INFO, "fd %d exit sucess", current->fd);break;
     }
 
-    if(current!=NULL){
-        scheduler->eventDel(current->getFd(), current->getType());
+    if(current != NULL){
+        epollDelEvent(current->epollFd, current->fd, current->type);
         delete current;
         current = NULL;
     }
     
-    printf("%d schedule to next\n", gettid());
+    log(INFO, "schedule to next");
     schedule();
 }
 
-int waitOnRead(int fd){
-    scheduler->wait(fd, Scheduler::READ);
-}
+class Enviroment{
+private:
+    static int times;
+public:
+    Enviroment(){
+        times++;
+        if(scheduler == NULL){
+            scheduler = new Scheduler(1024);
+        }
+       
+        if(corMap == NULL){
+            corMap = new std::unordered_map<int, Coroutine*>;
+        }
+        log(INFO, "env initialize %d\n", times);
+    }
 
-int waitOnWrite(int fd){
-    scheduler->wait(fd, Scheduler::WRITE);
-}
+    ~Enviroment(){
+        if(scheduler != NULL){
+             delete scheduler;
+         }
 
-void schedule(){
-    scheduler->schedule();
-}
+         if(corMap != NULL){
+             delete corMap;
+             corMap = NULL;
+         }
+         log(INFO, "env destory %d\n", times);
+         times--;
+    }
+};
 
-void addToRunQue(Coroutine *co){
-    scheduler->addToRunQue(co);
-}
+int Enviroment::times = 0;
+
+Enviroment env;
+
+

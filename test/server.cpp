@@ -13,14 +13,14 @@ bool isExit = false;
 int socketHandleCoroutine(void *arg){
     int fd = *(int*)arg;
     char buf[256];
-    printf("%d:%d start socketHandleCoroutine fd: %d\n", gettid(), getcid(), fd);
+    log(INFO, "start socketHandleCoroutine fd: %d", fd);
 
     int ret = 0;
     while(!isExit){
         ret = net::readn(fd, buf, 19);
         if(ret <= 0)
             break;
-        printf("%d:%d fd: %d, recv %s\n", gettid(), getcid(), fd, buf);
+        log(INFO, "fd: %d, recv %s", fd, buf);
         net::writen(fd, buf, 19);
     }
     close(fd);
@@ -33,7 +33,7 @@ int acceptCoroutine(void *arg){
 
     while(!isExit){
         if((clientFd = net::accept(serverFd)) > 2){
-            printf("%d:%d accept fd %d\n", gettid(), getcid(), clientFd);
+            log(INFO,"accept fd %d\n", clientFd);
             createCoroutine(socketHandleCoroutine, &clientFd);
         }
     }
@@ -70,10 +70,8 @@ int main(int argc, char** argv){
     }
     net::setNoBlock(serverFd);
 
-    envInitialize();
     createCoroutine(acceptCoroutine, &serverFd);
     yield;
-    envDestroy();
 
     close(serverFd);
     return 0;

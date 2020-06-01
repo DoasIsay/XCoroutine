@@ -1,11 +1,11 @@
-#include <dlfcn.h>
-#include <unistd.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <sys/socket.h>
+/*
+ * Copyright (c) 2020, xie wenwu <870585356@qq.com>
+ * 
+ * All rights reserved.
+ */
 
-extern int waitOnRead(int fd);
-extern int waitOnWrite(int fd);
+#include "syscall.h"
+#include "scheduler.h"
 
 typedef ssize_t (*SysRead)(int fd, void *buf, size_t count);
 typedef ssize_t (*SysWrite)(int fd, const void *buf, size_t count);

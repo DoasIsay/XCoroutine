@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2020, wenwu xie <870585356@qq.com>
+ * All rights reserved.
+ */
+
 #include "coroutine.h"
 
 extern void addToRunQue(Coroutine *co);
@@ -14,7 +19,7 @@ static int allocCid(){
     do{
         nextCid++;
         if(corMap->size() >= MAXCOS){
-            printf("exceed max coroutines %d\n", MAXCOS);
+            log(ERROR, "exceed max coroutines %d\n", MAXCOS);
             return -1;
         }
         if(nextCid >= MAXCOS)
@@ -30,6 +35,7 @@ Coroutine::Coroutine(int (*routine)(void *), void *arg){
     this->routine = routine;
     stackSize = STACKSIZE;
     signal = 0;
+    cid = allocCid();
 }
 
 Coroutine::Coroutine(int cid){
@@ -43,7 +49,6 @@ int Coroutine::setStackSize(int size){
 }
 
 void Coroutine::start(){
-    cid = allocCid();
     if(cid < 0)
         return;
     save(&context);
@@ -69,6 +74,8 @@ void createCoroutine(int (*routine)(void *),void *arg){
 }
 
 int getcid(){
+    if(current == NULL)
+        return 0;
     return current->getcid();
 }
 int gettid(){

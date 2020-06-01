@@ -1,6 +1,12 @@
+/*
+ * Copyright (c) 2020, xie wenwu <870585356@qq.com>
+ * 
+ * All rights reserved.
+ */
+ 
 #include "csignal.h"
 
-__thread SignalHandler *signalHandler = NULL;
+SignalHandler signalHandler[32] = {defaultHandler};
 
 extern __thread std::unordered_map<int, Coroutine*> *corMap;
 
@@ -22,9 +28,4 @@ int csignal(int signo, SignalHandler handler){
 
 void defaultHandler(int signo){
 
-}
-
-int signalHandlerInit(){
-    for(int i=0; i < 32; i++)
-       signalHandler[i] = defaultHandler;
 }

@@ -22,11 +22,8 @@ int test2(void *){
 }
 
 int main(){
-    signal(SIGTERM,quit);
-    envInitialize();
     createCoroutine(test0, NULL);
     createCoroutine(test1, NULL);
     createCoroutine(test2, NULL);
     yield;
-    envDestroy();
 }

@@ -1,7 +1,12 @@
+/*
+ * Copyright (c) 2020, xie wenwu <870585356@qq.com>
+ * 
+ * All rights reserved.
+ */
+
 #ifndef __SCHEDULER__
 #define __SCHEDULER__
 #include <stdio.h>
-#include <sys/epoll.h>
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
@@ -10,9 +15,8 @@
 #include "context.h"
 #include "coroutine.h"
 #include "queue.h"
-#include "csignal.h"
+#include "epoll.h"
 
-extern __thread Coroutine *current;
 
 class Scheduler{
 private:
@@ -24,31 +28,11 @@ private:
     Queue<Coroutine*> runQue;
     
 public:
-    static const int READ=EPOLLIN, WRITE=EPOLLOUT;
+    
     Scheduler(int max);
 
     Coroutine* next();
     
-    int eventCtl(int fd, int type, int mode){
-        epoll_event event;
-        event.events = type|EPOLLET;
-        if(type == WRITE)   event.events |= EPOLLONESHOT;
-        event.data.ptr = (void*)current;
-        return epoll_ctl(epollFd, mode, fd, &event);
-    }
-    
-    int eventAdd(int fd, int type){
-        return eventCtl(fd, type, EPOLL_CTL_ADD);
-    }
-    
-    int eventDel(int fd, int type){
-        return eventCtl(fd, type, EPOLL_CTL_DEL);
-    }
-
-    int eventMod(int fd, int type){
-        return eventCtl(fd, type, EPOLL_CTL_MOD);
-    }
-
     int wait(int fd, int type);
     
     void addToRunQue(Coroutine* co){
@@ -65,21 +49,28 @@ public:
     void signalProcess();
     
     void wakeup();
-    
+
     ~Scheduler();
 
 };
 
 extern __thread Scheduler *scheduler;
 
-void envInitialize();
-void envDestroy();
+void addToRunQue(Coroutine *co);
 
-void schedule();
 void startCoroutine();
 
-int waitOnRead(int fd);
-int waitOnWrite(int fd);
+static inline int waitOnRead(int fd){
+    scheduler->wait(fd, EVENT::READABLE);
+}
+
+static inline int waitOnWrite(int fd){
+    scheduler->wait(fd, EVENT::WRITEABLE);
+}
+
+static inline void schedule(){
+    scheduler->schedule();
+}
 
 #define yield\
 	do{\
