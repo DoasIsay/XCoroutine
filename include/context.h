@@ -21,7 +21,7 @@ extern "C"{
     void restore(Context *cxt);
 }
 /*
-void initCxt(Context &cxt){
+static void inline initCxt(Context &cxt){
 #ifdef __i386__
 		cxt.ebx=cxt.ecx=cxt.edx=cxt.ebp=cxt.esi=cxt.edi=0;
 #elif __x86_64__

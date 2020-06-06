@@ -6,24 +6,13 @@
 
 #ifndef __QUEUE__
 #define __QUEUE__
-//a first in first out queue
+//a first in first out queue, only used when item is point
 
-template<typename T>
-class Node{
-public:
-    Node *next;
-    Node *pre;
-    T item;
-    Node(){
-        next = pre = NULL;
-    }
-};
-
-template<typename T>
+template<class T>
 class Queue{
 private:
     int sizes;
-    Node<T> *head, *tail;
+    T head, tail;
     
 public:
     Queue(){
@@ -32,49 +21,28 @@ public:
     }
     
     void push(T item){
-        Node<T> *tmp = new Node<T>();
-        tmp->item = item;
-        if(head == NULL){
-            head = tail = tmp;
+        assert(item != NULL);
+        item->next = NULL;
+        
+        if(tail == NULL){
+            head = tail = item;
         }else{
-            head->pre = tmp;
-            tmp->next = head;
-            head = tmp;
+            tail->next = item;
+            tail = item;
         }
         sizes++;
     }
 
-    //the item is a point,use this fun is better, but it may maked two times obj copy
     T pop(){
-        if(tail != NULL){
-            T tmpItem = tail->item;
-            Node<T> *tmpNode = tail;
-            tail = tail->pre;
-            delete tmpNode;
-            if(tail != NULL)
-                tail->next = NULL;
-            else
-                head = NULL;
+        T item = NULL;
+        if(head != NULL){
+            item = head;
+            head = head->next;
             sizes--;
-            return tmpItem;
-        }else{
-            throw "Queue is empty";
+            if(!head) 
+                tail = NULL;
         }
-    }
-
-    int pop(T &item){
-        if(tail != NULL){
-            Node<T> *tmp = tail;
-            item = tmp->item;
-            tail = tail->pre;
-            delete tmp;
-            if(tail != NULL)
-                tail->next = NULL;
-            sizes--;
-            return 0;
-        }else{
-            return -1;
-        }
+        return item;
     }
 
 	int size(){
@@ -82,7 +50,7 @@ public:
 	}
 	
     int empty(){
-        return sizes == 0;
+        return size() == 0;
     }
 };
 #endif

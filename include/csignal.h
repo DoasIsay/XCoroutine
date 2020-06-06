@@ -4,8 +4,6 @@
  * All rights reserved.
  */
 
-#include "coroutine.h"
-
 typedef void (*SignalHandler)(int);
 extern SignalHandler signalHandler[];
 

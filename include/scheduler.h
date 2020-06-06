@@ -6,30 +6,39 @@
 
 #ifndef __SCHEDULER__
 #define __SCHEDULER__
-#include <stdio.h>
+
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
-#include <sys/syscall.h>
 #include <assert.h>
-#include "context.h"
 #include "coroutine.h"
 #include "queue.h"
 #include "epoll.h"
-
+#include "log.h"
 
 class Scheduler{
 private:
-    int epollFd;
+    int epfd;
     int nextEventIdx;
     int firedEventSize;
     int maxEventSize;
     epoll_event *events;
+    
     Queue<Coroutine*> runQue;
     
-public:
+    static __thread Scheduler *instance;
     
     Scheduler(int max);
+    Scheduler() = delete;
+    Scheduler(const Scheduler &) = delete;
+    Scheduler &operator=(const Scheduler&) = delete;
+    
+public:
+    static Scheduler* Instance(){
+        if(!instance)
+            instance = new Scheduler(1024);
+        return instance;
+    }
 
     Coroutine* next();
     
@@ -38,6 +47,7 @@ public:
     void addToRunQue(Coroutine* co){
         runQue.push(co);
     }
+    
     Coroutine* delFromRunQue(){
         return runQue.pop();
     }
@@ -54,22 +64,20 @@ public:
 
 };
 
-extern __thread Scheduler *scheduler;
-
 void addToRunQue(Coroutine *co);
 
 void startCoroutine();
 
 static inline int waitOnRead(int fd){
-    scheduler->wait(fd, EVENT::READABLE);
+    Scheduler::Instance()->wait(fd, EVENT::READABLE);
 }
 
 static inline int waitOnWrite(int fd){
-    scheduler->wait(fd, EVENT::WRITEABLE);
+    Scheduler::Instance()->wait(fd, EVENT::WRITEABLE);
 }
 
 static inline void schedule(){
-    scheduler->schedule();
+    Scheduler::Instance()->schedule();
 }
 
 #define yield\
@@ -77,6 +85,7 @@ static inline void schedule(){
 		if(current == NULL){\
 			current = new Coroutine(0);\
 		}\
-		scheduler->wait(-1, -1);\
+		Scheduler::Instance()->wait(-1, -1);\
 	}while(0)
+	
 #endif

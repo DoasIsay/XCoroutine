@@ -3,19 +3,20 @@
  * 
  * All rights reserved.
  */
- 
+
+#include <assert.h>
+#include "coroutine.h"
 #include "csignal.h"
+#include "cormap.h"
 
 SignalHandler signalHandler[32] = {defaultHandler};
 
-extern __thread std::unordered_map<int, Coroutine*> *corMap;
-
 int ckill(int cid, char signo){
-    std::unordered_map<int, Coroutine*>::iterator findIt = corMap->find(cid);
-    if(findIt != corMap->end()){
+    Coroutine *co = CorMap::Instance()->get(cid);
+    if(co != NULL){
         if(signo == 0) return 0;
         
-        findIt->second->sendSignal(signo);
+        co->sendSignal(signo);
         return 0;
     }else
         return -1;

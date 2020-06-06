@@ -6,37 +6,36 @@
 
 #ifndef __COROUTINE__
 #define __COROUTINE__
-#include <stdio.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/syscall.h>
-#include "context.h"
-#include <set>
-#include <assert.h>
-#include <unordered_map>
-#include "log.h"
 
+#include "context.h"
 
 typedef int(*Routine)(void *);
 
 class Coroutine{
 private:
     friend void startCoroutine();
-    int epollFd;
-    int fd;
-    int type;
     
-    Routine routine;
+    union Id{
+        int fd;
+        int cid;
+    }id;
+    int type;
+    int epfd;
+
+    void *arg;
     void *stack;
     int stackSize;
-    void *arg;
+    Routine routine;
     Context context;
-    int cid;
     
     int signal;
 
+    Coroutine() = delete;
+    Coroutine(const Coroutine &) = delete;
+    Coroutine &operator=(const Coroutine&) = delete;
+
 public:
+    Coroutine *next;
     
     Coroutine(int (*routine)(void *), void *arg);
 	
@@ -53,10 +52,11 @@ public:
     }
 
     void setFd(int fd){
-        this->fd = fd;
+        this->id.fd = fd;
     }
+    
     int getFd(){
-        return fd;
+        return id.fd;
     }
 
     void setType(int type){
@@ -67,18 +67,18 @@ public:
         return type;
     }
 
-    void setEpollFd(int eFd){
-        epollFd = eFd;
+    void setEpfd(int fd){
+        epfd = fd;
     }
 
-    int getEpollFd(){
-        return epollFd;
+    int getEpfd(){
+        return epfd;
     }
     
     void start();
 
     int getcid(){
-        return cid;
+        return id.cid;
     }
 
     int sendSignal(int signo){
@@ -98,10 +98,9 @@ public:
 
 extern __thread Coroutine *current;
 
-extern __thread std::unordered_map<int, Coroutine*> *corMap;
-
 void createCoroutine(int (*routine)(void *),void *arg);
 
 int getcid();
 int gettid();
+
 #endif

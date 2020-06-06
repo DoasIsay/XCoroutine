@@ -6,15 +6,17 @@
 
 #include "scheduler.h"
 #include "csignal.h"
-#include "log.h"
+#include "cormap.h"
 
 #define INTHZ 10
+
+__thread Scheduler* Scheduler::instance = NULL;
 
 Scheduler::Scheduler(int max =1024){
     nextEventIdx = 0;
     firedEventSize = 0;
     maxEventSize = max;
-    epollFd = epollCreate(max);
+    epfd = epollCreate(max);
     events = (epoll_event*)malloc(max*sizeof(epoll_event));
 }
 
@@ -26,11 +28,11 @@ inline Coroutine* Scheduler::next(){
     return NULL;
 }
 
-#define setEvent(epollFd, fd, type)\
+#define setEvent(epfd, fd, type)\
     do{\
         current->setFd(fd);\
         current->setType(type);\
-        current->setEpollFd(epollFd);\
+        current->setEpfd(epfd);\
     }while(0)
 
 int Scheduler::wait(int fd, int type){
@@ -39,12 +41,15 @@ int Scheduler::wait(int fd, int type){
         return 1;
     
     if(fd > 0){
-        if(current->getFd() < 0){
-            setEvent(epollFd, fd, type);
+        if(current->getcid() >= CorMap::STARTCID){
+            CorMap::Instance()->del(current->getcid());
+            setEvent(epfd, fd, type);
             epollAddEvent(epollFd, fd, type);
-        }else if(current->getType() != type){
-            setEvent(epollFd, fd, type);
-            epollModEvent(epollFd, fd, type);
+            CorMap::Instance()->set(fd, current);
+        }
+        else if(current->getType() != type){
+            setEvent(epfd, fd, type);
+            epollModEvent(epfd, fd, type);
         }
     }else{
         addToRunQue(current);
@@ -72,10 +77,12 @@ inline void Scheduler::wakeup(){
 }
 
 inline void Scheduler::timerInterrupt(){
+    
     if(!runQue.empty()){
         current = delFromRunQue();
-        if(current->getcid()!=0 || (corMap->size() == 1))
+        if(getcid() != 0 || CorMap::Instance()->empty()){
             wakeup();
+        }
         else{
             addToRunQue(current);
             current = NULL;
@@ -98,21 +105,21 @@ Scheduler::~Scheduler(){
     free(events);
 }
 
-__thread Scheduler *scheduler = NULL;
-
 void addToRunQue(Coroutine *co){
-    scheduler->addToRunQue(co);
+    Scheduler::Instance()->addToRunQue(co);
 }
 
 void startCoroutine(){
     switch(current->routine(current->arg)){
-        case -1:log(ERROR, "fd %d exit fail", current->fd);break;
+        case -1:log(ERROR, "fd %d exit fail", current->id.fd);break;
         case  0:
-        case  1:log(INFO, "fd %d exit sucess", current->fd);break;
+        case  1:log(INFO, "fd %d exit sucess", current->id.fd);break;
     }
 
     if(current != NULL){
-        epollDelEvent(current->epollFd, current->fd, current->type);
+        if(current->id.fd < CorMap::STARTCID){
+            epollDelEvent(current->epfd, current->id.fd, current->type);
+        }
         delete current;
         current = NULL;
     }
@@ -120,39 +127,3 @@ void startCoroutine(){
     log(INFO, "schedule to next");
     schedule();
 }
-
-class Enviroment{
-private:
-    static int times;
-public:
-    Enviroment(){
-        times++;
-        if(scheduler == NULL){
-            scheduler = new Scheduler(1024);
-        }
-       
-        if(corMap == NULL){
-            corMap = new std::unordered_map<int, Coroutine*>;
-        }
-        log(INFO, "env initialize %d\n", times);
-    }
-
-    ~Enviroment(){
-        if(scheduler != NULL){
-             delete scheduler;
-         }
-
-         if(corMap != NULL){
-             delete corMap;
-             corMap = NULL;
-         }
-         log(INFO, "env destory %d\n", times);
-         times--;
-    }
-};
-
-int Enviroment::times = 0;
-
-Enviroment env;
-
-

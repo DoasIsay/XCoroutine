@@ -3,45 +3,46 @@
  * All rights reserved.
  */
 
+#include <stdio.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <assert.h>
+#include "log.h"
 #include "coroutine.h"
+#include "cormap.h"
 
 extern void addToRunQue(Coroutine *co);
 extern void startCoroutine();
 
 __thread Coroutine *current = NULL;
-__thread std::unordered_map<int, Coroutine*> *corMap = NULL;
 
-const static int STACKSIZE = 4096;
+const static int STACKSIZE = 8192;
 const static int MAXCOS = 65536*128;
 
 static int allocCid(){
-    static __thread int nextCid = 0;
-    do{
-        nextCid++;
-        if(corMap->size() >= MAXCOS){
-            log(ERROR, "exceed max coroutines %d\n", MAXCOS);
-            return -1;
-        }
-        if(nextCid >= MAXCOS)
-            nextCid = 1;
-    }while(corMap->find(nextCid) != corMap->end());
-    return nextCid;
+    int cid = 0;
+    CorMap *corMap = CorMap::Instance();
+    for(cid = CorMap::STARTCID ; corMap->get(cid) != NULL; ++cid);
+    return cid; 
 }
 
 Coroutine::Coroutine(int (*routine)(void *), void *arg){
-    fd = -1;
+    next = NULL;
     stack = NULL;
     this->arg = arg;
     this->routine = routine;
     stackSize = STACKSIZE;
     signal = 0;
-    cid = allocCid();
+    id.cid = allocCid();
 }
 
 Coroutine::Coroutine(int cid){
-    this->cid = cid;
+    this->id.cid = cid;
     signal = 0;
-    corMap->insert(std::make_pair(cid, this));
+    next = NULL;
+    //CorMap::Instance()->set(cid, this);
 }
 
 int Coroutine::setStackSize(int size){
@@ -49,7 +50,7 @@ int Coroutine::setStackSize(int size){
 }
 
 void Coroutine::start(){
-    if(cid < 0)
+    if(id.cid < 0)
         return;
     save(&context);
     context.pc = (long)startCoroutine;
@@ -58,14 +59,14 @@ void Coroutine::start(){
     assert(stack != NULL);
     
     context.sp = (long)((char*)stack + stackSize);
-    corMap->insert(std::make_pair(cid, this));
+    CorMap::Instance()->set(id.cid, this);
     addToRunQue(this);
 }
 
 Coroutine::~Coroutine(){
     if(stack != NULL)
         free(stack);
-    corMap->erase(cid);
+    CorMap::Instance()->del(id.cid);
 }
 
 void createCoroutine(int (*routine)(void *),void *arg){
