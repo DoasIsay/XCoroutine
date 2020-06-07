@@ -44,7 +44,7 @@ int Scheduler::wait(int fd, int type){
         if(current->getcid() >= CorMap::STARTCID){
             CorMap::Instance()->del(current->getcid());
             setEvent(epfd, fd, type);
-            epollAddEvent(epollFd, fd, type);
+            epollAddEvent(epfd, fd, type);
             CorMap::Instance()->set(fd, current);
         }
         else if(current->getType() != type){
@@ -93,7 +93,7 @@ inline void Scheduler::timerInterrupt(){
 int Scheduler::schedule(){
     while(true){
         if((current = next()) != NULL) break;
-        firedEventSize =  epollWait(epollFd, events, maxEventSize, INTHZ);
+        firedEventSize =  epollWait(epfd, events, maxEventSize, INTHZ);
         if(firedEventSize == 0)
             timerInterrupt();
     }
@@ -101,7 +101,7 @@ int Scheduler::schedule(){
 }
 
 Scheduler::~Scheduler(){
-    close(epollFd);
+    close(epfd);
     free(events);
 }
 
@@ -117,9 +117,6 @@ void startCoroutine(){
     }
 
     if(current != NULL){
-        if(current->id.fd < CorMap::STARTCID){
-            epollDelEvent(current->epfd, current->id.fd, current->type);
-        }
         delete current;
         current = NULL;
     }
