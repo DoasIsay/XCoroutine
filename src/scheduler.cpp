@@ -117,9 +117,6 @@ void startCoroutine(){
     }
 
     if(current != NULL){
-        if(current->id.fd < CorMap::STARTCID){
-            epollDelEvent(current->epfd, current->id.fd, current->type);
-        }
         delete current;
         current = NULL;
     }
