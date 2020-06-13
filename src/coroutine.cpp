@@ -90,3 +90,16 @@ int getcid(){
 int gettid(){
     return syscall(__NR_gettid);
 }
+
+int getErno(){
+    if(current == NULL)
+        return 0;
+    return current->getErno();
+}
+
+void setErno(int erno){
+    if(current == NULL)
+        return;
+    current->setErno(erno);
+}
+

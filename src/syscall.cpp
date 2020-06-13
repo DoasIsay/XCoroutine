@@ -17,6 +17,7 @@ SysAccept sysAccept= (SysAccept)dlsym(RTLD_NEXT, "accept");
 
 ssize_t read(int fd, void *buf, size_t count){
     int ret = sysRead(fd, buf, count);
+    setErno(errno);
     if(ret < 0){
         if(errno == EAGAIN){
             waitOnRead(fd);
@@ -27,6 +28,7 @@ ssize_t read(int fd, void *buf, size_t count){
 
 ssize_t write(int fd, const void *buf, size_t count){
     int ret = sysWrite(fd, buf, count);
+    setErno(errno);
     if(ret < 0){
         if(errno == EAGAIN){
             waitOnWrite(fd);
@@ -37,6 +39,7 @@ ssize_t write(int fd, const void *buf, size_t count){
 
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen){
     int ret = sysAccept(sockfd, addr, addrlen);
+    setErno(errno);
     if(ret < 0){
         if(errno == EAGAIN){
             waitOnRead(sockfd);

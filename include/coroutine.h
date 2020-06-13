@@ -28,6 +28,7 @@ private:
     Routine routine;
     Context context;
 
+    int erno;
     int signal;
     
     Coroutine() = delete;
@@ -93,6 +94,14 @@ public:
         signal|=signo;
     }
 
+    void setErno(int erno){
+        this->erno = erno;
+    }
+
+    int getErno(){
+        return erno;
+    }
+    
     ~Coroutine();
 };
 
@@ -103,4 +112,6 @@ Coroutine *createCoroutine(int (*routine)(void *),void *arg);
 int getcid();
 int gettid();
 
+void setErno(int erno);
+int getErno();
 #endif

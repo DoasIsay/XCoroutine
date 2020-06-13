@@ -103,7 +103,6 @@ int Scheduler::schedule(){
     }
 
     wakeup();
-
 }
 
 Scheduler::~Scheduler(){
@@ -120,17 +119,16 @@ void addToRunQue(Coroutine *co){
 
 void startCoroutine(){
     switch(current->routine(current->arg)){
-        case -1:log(ERROR, "fd %d exit fail", current->id.fd);break;
+        case -1:log(ERROR, "fd:%d exit fail", current->id.fd);break;
         case  0:
-        case  1:log(INFO, "fd %d exit sucess", current->id.fd);break;
+        case  1:log(INFO, "fd:%d exit sucess", current->id.fd);break;
     }
-    
-    log(INFO, "schedule to next");
     
     if(current != NULL){
         delete current;
         current = NULL;
     }
+    log(INFO, "schedule to next");
     
     schedule();
 }
