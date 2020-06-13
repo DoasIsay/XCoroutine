@@ -32,9 +32,10 @@ int acceptCoroutine(void *arg){
     int clientFd = 0;
 
     while(!isExit){
-        if((clientFd = net::accept(serverFd)) > 2){
-            log(INFO,"accept fd %d\n", clientFd);
-            createCoroutine(socketHandleCoroutine, &clientFd);
+        int *clientFd = new int;
+        if((*clientFd = net::accept(serverFd)) > 2){
+            log(INFO,"accept fd %d\n", *clientFd);
+            createCoroutine(socketHandleCoroutine, (void*)clientFd);
         }
     }
 }

@@ -29,7 +29,7 @@ static inline int eventCtl(int epollFd, int fd, int type, int mode){
     event.data.ptr = (void*)current;
     int ret = epoll_ctl(epollFd, mode, fd, &event);
     if(ret < 0){
-        log(ERROR,"epoll epfd:%d fd:%d type:%d  error: %s", epollFd, fd, type, strerror(errno));
+        log(ERROR,"epoll epfd:%d fd:%d type:%d mode:%d error: %s", epollFd, fd, type, mode, strerror(errno));
     }
     return ret;
 }

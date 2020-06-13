@@ -1,4 +1,3 @@
 #include "cormap.h"
 
-__thread CorMap* CorMap::instance = NULL;
-
+volatile CorMap* CorMap::instance = NULL;

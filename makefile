@@ -26,7 +26,7 @@ yield:$(OBJS)
 	g++ -o yield ./test/yield.o -ltoco $(LIBS)
 
 client:$(OBJS)
-	g++ -o client  ./test/client.o
+	g++ -o client  ./test/client.o ./test/socket.o -ltoco $(LIBS)
 
 server:$(OBJS)
 	g++ -o server  ./test/server.o  ./test/socket.o -ltoco $(LIBS)

@@ -16,7 +16,7 @@ int ckill(int cid, char signo){
     if(co != NULL){
         if(signo == 0) return 0;
         
-        co->sendSignal(signo);
+        co->setSignal(signo);
         return 0;
     }else
         return -1;

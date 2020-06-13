@@ -27,9 +27,9 @@ private:
     int stackSize;
     Routine routine;
     Context context;
-    
-    int signal;
 
+    int signal;
+    
     Coroutine() = delete;
     Coroutine(const Coroutine &) = delete;
     Coroutine &operator=(const Coroutine&) = delete;
@@ -78,27 +78,27 @@ public:
     void start();
 
     int getcid(){
-        return id.cid;
-    }
-
-    int sendSignal(int signo){
-        signal|=signo;
+        return id.fd;
     }
 
     int getSignal(){
         return signal;
     }
 
-    void setSignal(){
-        signal = 0;
+    void setSignal(int signo){
+        if(!signo){
+            signal = signo;
+            return;
+        }
+        signal|=signo;
     }
-    
+
     ~Coroutine();
 };
 
 extern __thread Coroutine *current;
 
-void createCoroutine(int (*routine)(void *),void *arg);
+Coroutine *createCoroutine(int (*routine)(void *),void *arg);
 
 int getcid();
 int gettid();
