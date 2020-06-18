@@ -40,13 +40,13 @@ int readWriteRoutine(void *arg){
     while(!isExit){
         int ret = net::writen(fd,buf,sizeof(buf));
         if(ret < 0){
-             log(INFO, "fd:%d read error:%s", fd, strerror(errno));
+             log(ERROR, "fd:%d read error:%s", fd, strerror(errno));
         }
         log(INFO, "fd:%d send %s\n", fd, buf);
         
         ret = net::readn(fd,buf,sizeof(buf));
         if(ret < 0){
-             log(INFO, "fd:%d write error:%s", fd, strerror(errno));
+             log(ERROR, "fd:%d write error:%s", fd, strerror(errno));
         }
     }
     close(fd);
