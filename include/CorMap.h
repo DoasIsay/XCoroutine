@@ -9,13 +9,14 @@
 
 #include <stdlib.h>
 #include <memory.h>
+#include <assert.h>
 #include "locker.h"
 
 class Map{
 private:
-    int caps;
-    int sizes;
-    void **arr;
+    volatile int caps;
+    volatile int sizes;
+    void** volatile arr;
     
     int expand(){
         int newCaps = caps * 2;
@@ -47,6 +48,9 @@ public:
             arr[key] = value;
         }else{
             ret = expand();
+            if(ret != 0){
+                return ret;
+            }
             arr[key] = value;
         }
         sizes++;
@@ -61,7 +65,7 @@ public:
     }
 
     int del(int key){
-        if(key < caps){
+        if(key < caps && arr[key] != NULL){
             sizes--;
             arr[key] = NULL;
             return 0;

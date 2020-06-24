@@ -80,6 +80,21 @@ static inline void schedule(){
     Scheduler::Instance()->schedule();
 }
 
+#define setEvent(epfd, fd, type)\
+        do{\
+            current->setFd(fd);\
+            current->setType(type);\
+            current->setEpfd(epfd);\
+        }while(0)
+
+static inline void clear(){
+    if(current != NULL && current->getEpfd() > 0){
+        CorMap::Instance()->del(current->getcid());
+        epollDelEvent(current->getEpfd(), current->getFd(), current->getType());
+        setEvent(-1, -1, -1);
+    }
+}
+
 #define yield\
 	do{\
 		if(current == NULL){\

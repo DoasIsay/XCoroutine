@@ -4,10 +4,14 @@
  * All rights reserved.
  */
 
+#include <sys/types.h>
+#include <sys/stat.h>
 #include "scheduler.h"
 #include "csignal.h"
 
 #define INTHZ 10
+
+static __thread Coroutine *last = NULL;
 
 __thread Scheduler* Scheduler::instance = NULL;
 
@@ -24,23 +28,21 @@ Scheduler::Scheduler(int max =1024){
 
 inline Coroutine* Scheduler::next(){
     if(nextEventIdx < firedEventSize){
-        return (Coroutine*)(events[nextEventIdx++].data.ptr);
+        return (Coroutine*)events[nextEventIdx++].data.ptr;
     }
     nextEventIdx=firedEventSize=0;
     return NULL;
 }
 
-#define setEvent(epfd, fd, type)\
-        do{\
-            current->setFd(fd);\
-            current->setType(type);\
-            current->setEpfd(epfd);\
-        }while(0)
-
 int Scheduler::wait(int fd, int type){
     assert(current != NULL);
-    if(save(current->getContext()))
+    if(save(current->getContext())){
+        if(last != NULL){
+            delete last;
+            last = NULL;
+        }        
         return 1;
+    }
     
     if(fd > 0){
         if(current->getEpfd() < 0){
@@ -99,9 +101,9 @@ int Scheduler::schedule(){
         firedEventSize =  epollWait(epfd, events, maxEventSize, INTHZ);
         
         if(firedEventSize == 0)
-            timerInterrupt();
+            timerInterrupt();;
     }
-
+    
     wakeup();
 }
 
@@ -119,16 +121,17 @@ void addToRunQue(Coroutine *co){
 
 void startCoroutine(){
     switch(current->routine(current->arg)){
-        case -1:log(ERROR, "fd:%d exit fail", current->id.fd);break;
-        case  0:
-        case  1:log(INFO, "fd:%d exit sucess", current->id.fd);break;
+        case -1:log(ERROR, "fd:%d exit fail", current->getFd());break;
+        case  0:;
+        case  1:log(INFO, "fd:%d exit sucess", current->getFd());break;
     }
-    
-    if(current != NULL){
-        delete current;
-        current = NULL;
-    }
+
+    if(current->getFd() > 0)
+        clear();
+    last = current;
+     
     log(INFO, "schedule to next");
     
     schedule();
+
 }

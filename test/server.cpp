@@ -62,7 +62,7 @@ int main(int argc, char** argv){
     int  serverFd;
     struct sockaddr_in  addr;
 
-    if((serverFd = socket(AF_INET, SOCK_STREAM, 0)) == -1){
+    if((serverFd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
         printf("create socket error: %s\n", strerror(errno));
         return 0;
     }
@@ -71,21 +71,21 @@ int main(int argc, char** argv){
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(5566);
-    if(bind(serverFd, (struct sockaddr*)&addr, sizeof(addr)) == -1){
+    if(bind(serverFd, (struct sockaddr*)&addr, sizeof(addr)) < 0){
         printf("bind socket error: %s)\n", strerror(errno));
         return 0;
     }
-    if(listen(serverFd, 10) == -1){
+    if(listen(serverFd, 10) < 0){
         printf("listen socket error: %s\n", strerror(errno));
         return 0;
     }
     net::setNoBlock(serverFd);
 
     createCoroutine(acceptCoroutine, &serverFd);
-    
     yield;
-
+    
     close(serverFd);
-    return 0;
+    
+    log(INFO, "exit sucessfully");
 }
 

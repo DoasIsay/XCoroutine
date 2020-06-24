@@ -41,12 +41,14 @@ int readWriteRoutine(void *arg){
         int ret = net::writen(fd,buf,sizeof(buf));
         if(ret < 0){
              log(ERROR, "fd:%d read error:%s", fd, strerror(errno));
+             break;
         }
         log(INFO, "fd:%d send %s\n", fd, buf);
         
         ret = net::readn(fd,buf,sizeof(buf));
         if(ret < 0){
              log(ERROR, "fd:%d write error:%s", fd, strerror(errno));
+             break;
         }
     }
     close(fd);
@@ -60,11 +62,11 @@ void quit(int signo)
 int main(int argvs, char *argv[])
 {
     signal(SIGTERM,quit);
-
-    for(int i=0; i<10000; i++)       
+    
+    for(int i=0; i<10000 && !isExit; i++)       
     createCoroutine(readWriteRoutine, NULL);
     
     yield;
-    
-    return 0;
+
+    log(INFO, "exit sucess");
 }

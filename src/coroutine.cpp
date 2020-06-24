@@ -18,7 +18,7 @@ extern void startCoroutine();
 
 __thread Coroutine *current = NULL;
 
-const static int STACKSIZE = 8192;
+const static int STACKSIZE = 4096;
 
 static int allocCid(Coroutine *co){
     int cid;
@@ -73,7 +73,6 @@ void Coroutine::start(){
 Coroutine::~Coroutine(){
     if(stack != NULL)
         free(stack);
-    CorMap::Instance()->del(getcid());
 }
 
 Coroutine *createCoroutine(int (*routine)(void *),void *arg){
