@@ -14,24 +14,25 @@
 #include "coroutine.h"
 #include "queue.h"
 #include "epoll.h"
+#include "cormap.h"
 #include "log.h"
 
 class Scheduler{
 private:
+    Queue<Coroutine*> *runQue;
+    
     int epfd;
     int nextEventIdx;
-    int firedEventSize;
     int maxEventSize;
+    int firedEventSize;
     epoll_event *events;
-    
-    Queue<Coroutine*> runQue;
-    
-    static __thread Scheduler *instance;
-    
+
     Scheduler(int max);
     Scheduler() = delete;
     Scheduler(const Scheduler &) = delete;
     Scheduler &operator=(const Scheduler&) = delete;
+
+    static __thread Scheduler *instance;
     
 public:
     static Scheduler* Instance(){
@@ -39,29 +40,28 @@ public:
             instance = new Scheduler(1024);
         return instance;
     }
-
-    Coroutine* next();
+    
+    void wakeup();
     
     int wait(int fd, int type);
     
-    void addToRunQue(Coroutine* co){
-        runQue.push(co);
-    }
+    int schedule();
     
-    Coroutine* delFromRunQue(){
-        return runQue.pop();
-    }
+    Coroutine* next();
+    
+    void signalProcess();
     
     void timerInterrupt();
     
-    int schedule();
-
-    void signalProcess();
+    void addToRunQue(Coroutine* co){
+        runQue->push(co);
+    }
     
-    void wakeup();
-
+    Coroutine* delFromRunQue(){
+        return runQue->pop();
+    }
+    
     ~Scheduler();
-
 };
 
 void addToRunQue(Coroutine *co);
@@ -78,6 +78,21 @@ static inline int waitOnWrite(int fd){
 
 static inline void schedule(){
     Scheduler::Instance()->schedule();
+}
+
+#define setEvent(epfd, fd, type)\
+        do{\
+            current->setFd(fd);\
+            current->setType(type);\
+            current->setEpfd(epfd);\
+        }while(0)
+
+static inline void clear(){
+    if(current != NULL && current->getEpfd() > 0){
+        CorMap::Instance()->del(current->getcid());
+        epollDelEvent(current->getEpfd(), current->getFd(), current->getType());
+        setEvent(-1, -1, -1);
+    }
 }
 
 #define yield\

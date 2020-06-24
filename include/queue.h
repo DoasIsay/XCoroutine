@@ -8,11 +8,14 @@
 #define __QUEUE__
 //a first in first out queue, only used when item is point
 
-template<class T>
+#include "locker.h"
+
+template<class T, class LockerType = Locker>
 class Queue{
 private:
-    int sizes;
-    T head, tail;
+    LockerType locker;
+    volatile int sizes;
+    volatile T head, tail;
     
 public:
     Queue(){
@@ -23,7 +26,8 @@ public:
     void push(T item){
         assert(item != NULL);
         item->next = NULL;
-        
+
+        locker.lock();
         if(tail == NULL){
             head = tail = item;
         }else{
@@ -31,10 +35,12 @@ public:
             tail = item;
         }
         sizes++;
+        locker.unlock();
     }
 
     T pop(){
         T item = NULL;
+        locker.lock();
         if(head != NULL){
             item = head;
             head = head->next;
@@ -42,6 +48,7 @@ public:
             if(!head) 
                 tail = NULL;
         }
+        locker.unlock();
         return item;
     }
 
@@ -49,8 +56,9 @@ public:
 		return sizes;
 	}
 	
-    int empty(){
+    bool empty(){
         return size() == 0;
     }
 };
+
 #endif

@@ -4,44 +4,48 @@
  * All rights reserved.
  */
 
+#include <sys/types.h>
+#include <sys/stat.h>
 #include "scheduler.h"
 #include "csignal.h"
-#include "cormap.h"
 
 #define INTHZ 10
+
+static __thread Coroutine *last = NULL;
 
 __thread Scheduler* Scheduler::instance = NULL;
 
 Scheduler::Scheduler(int max =1024){
+    runQue = new Queue<Coroutine*>();
+    
     nextEventIdx = 0;
     firedEventSize = 0;
     maxEventSize = max;
+    
     epfd = epollCreate(max);
     events = (epoll_event*)malloc(max*sizeof(epoll_event));
 }
 
 inline Coroutine* Scheduler::next(){
     if(nextEventIdx < firedEventSize){
-        return (Coroutine*)(events[nextEventIdx++].data.ptr);
+        return (Coroutine*)events[nextEventIdx++].data.ptr;
     }
     nextEventIdx=firedEventSize=0;
     return NULL;
 }
 
-#define setEvent(epfd, fd, type)\
-    do{\
-        current->setFd(fd);\
-        current->setType(type);\
-        current->setEpfd(epfd);\
-    }while(0)
-
 int Scheduler::wait(int fd, int type){
     assert(current != NULL);
-    if(save(current->getContext()))
+    if(save(current->getContext())){
+        if(last != NULL){
+            delete last;
+            last = NULL;
+        }        
         return 1;
+    }
     
     if(fd > 0){
-        if(current->getcid() >= CorMap::STARTCID){
+        if(current->getEpfd() < 0){
             CorMap::Instance()->del(current->getcid());
             setEvent(epfd, fd, type);
             epollAddEvent(epfd, fd, type);
@@ -68,17 +72,17 @@ void Scheduler::signalProcess(){
             signalHandler[signo](signo);
         }
     }
-    current->setSignal();
+    current->setSignal(0);
 }
 
 inline void Scheduler::wakeup(){
     signalProcess();
+    assert(current != NULL);
     restore(current->getContext());
 }
 
 inline void Scheduler::timerInterrupt(){
-    
-    if(!runQue.empty()){
+    if(!runQue->empty()){
         current = delFromRunQue();
         if(getcid() != 0 || CorMap::Instance()->empty()){
             wakeup();
@@ -93,16 +97,22 @@ inline void Scheduler::timerInterrupt(){
 int Scheduler::schedule(){
     while(true){
         if((current = next()) != NULL) break;
+        
         firedEventSize =  epollWait(epfd, events, maxEventSize, INTHZ);
+        
         if(firedEventSize == 0)
-            timerInterrupt();
+            timerInterrupt();;
     }
+    
     wakeup();
 }
 
 Scheduler::~Scheduler(){
     close(epfd);
     free(events);
+    if(runQue != NULL)
+        delete runQue;
+
 }
 
 void addToRunQue(Coroutine *co){
@@ -111,16 +121,17 @@ void addToRunQue(Coroutine *co){
 
 void startCoroutine(){
     switch(current->routine(current->arg)){
-        case -1:log(ERROR, "fd %d exit fail", current->id.fd);break;
-        case  0:
-        case  1:log(INFO, "fd %d exit sucess", current->id.fd);break;
+        case -1:log(ERROR, "fd:%d exit fail", current->getFd());break;
+        case  0:;
+        case  1:log(INFO, "fd:%d exit sucess", current->getFd());break;
     }
 
-    if(current != NULL){
-        delete current;
-        current = NULL;
-    }
-    
+    if(current->getFd() > 0)
+        clear();
+    last = current;
+     
     log(INFO, "schedule to next");
+    
     schedule();
+
 }

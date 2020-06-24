@@ -18,31 +18,39 @@ extern void startCoroutine();
 
 __thread Coroutine *current = NULL;
 
-const static int STACKSIZE = 8192;
-const static int MAXCOS = 65536*128;
+const static int STACKSIZE = 4096;
 
-static int allocCid(){
-    int cid = 0;
+static int allocCid(Coroutine *co){
+    int cid;
     CorMap *corMap = CorMap::Instance();
+    static SpinLocker locker;
+    locker.lock();
     for(cid = CorMap::STARTCID ; corMap->get(cid) != NULL; ++cid);
+    CorMap::Instance()->set(cid, co);
+    locker.unlock();
     return cid; 
 }
 
 Coroutine::Coroutine(int (*routine)(void *), void *arg){
+    type = -1;
+    epfd = -1;
+    signal = 0;
     next = NULL;
+    
     stack = NULL;
     this->arg = arg;
-    this->routine = routine;
     stackSize = STACKSIZE;
-    signal = 0;
-    id.cid = allocCid();
+    this->routine = routine;
+    
+    id.cid = allocCid(this);
 }
 
 Coroutine::Coroutine(int cid){
-    this->id.cid = cid;
+    type = -1;
+    epfd = -1;
     signal = 0;
     next = NULL;
-    //CorMap::Instance()->set(cid, this);
+    this->id.cid = cid;
 }
 
 int Coroutine::setStackSize(int size){
@@ -50,7 +58,7 @@ int Coroutine::setStackSize(int size){
 }
 
 void Coroutine::start(){
-    if(id.cid < 0)
+    if(getcid() < 0)
         return;
     save(&context);
     context.pc = (long)startCoroutine;
@@ -58,20 +66,19 @@ void Coroutine::start(){
     stack = malloc(stackSize);
     assert(stack != NULL);
     
-    context.sp = (long)((char*)stack + stackSize);
-    CorMap::Instance()->set(id.cid, this);
+    context.sp = (long)((char*)stack + stackSize);   
     addToRunQue(this);
 }
 
 Coroutine::~Coroutine(){
     if(stack != NULL)
         free(stack);
-    CorMap::Instance()->del(id.cid);
 }
 
-void createCoroutine(int (*routine)(void *),void *arg){
+Coroutine *createCoroutine(int (*routine)(void *),void *arg){
     Coroutine *co= new Coroutine(routine,arg);
-    co->start(); 
+    co->start();
+    return co;
 }
 
 int getcid(){
@@ -82,3 +89,16 @@ int getcid(){
 int gettid(){
     return syscall(__NR_gettid);
 }
+
+int getErno(){
+    if(current == NULL)
+        return 0;
+    return current->getErno();
+}
+
+void setErno(int erno){
+    if(current == NULL)
+        return;
+    current->setErno(erno);
+}
+

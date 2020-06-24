@@ -26,4 +26,6 @@ int main(){
     createCoroutine(test1, NULL);
     createCoroutine(test2, NULL);
     yield;
+    
+    log(INFO, "exit sucessfully");
 }

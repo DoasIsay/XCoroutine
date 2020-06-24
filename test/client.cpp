@@ -4,45 +4,69 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <errno.h> 
+#include <errno.h>
 #include <time.h>
 #include <string.h>
+#include "scheduler.h"
+#include "socket.h"
+#include <signal.h>
 
-int main(int argvs, char *argv[])
-{
-    int fd;
-    int recbytes;
-    int sin_size;
-    char buffer[1024]={0};   
-    struct sockaddr_in s_add,c_add;
+bool isExit = false;
 
-    fd = socket(AF_INET, SOCK_STREAM, 0);
+int readWriteRoutine(void *arg){
+    
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
     if(-1 == fd)
     {
-        printf("create socket fail \n");
+        printf("create socket fail error:%s\n",strerror(errno));
         return -1;
     }
     
-    bzero(&s_add,sizeof(struct sockaddr_in));
-    s_add.sin_family=AF_INET;
-    s_add.sin_addr.s_addr= inet_addr("127.0.0.1");
-    s_add.sin_port=htons(5566);
+    struct sockaddr_in addr;
+    bzero(&addr,sizeof(struct sockaddr_in));
+    addr.sin_family=AF_INET;
+    addr.sin_addr.s_addr= inet_addr("127.0.0.1");
+    addr.sin_port=htons(5566);
     
-    if( connect(fd,(struct sockaddr *)(&s_add), sizeof(struct sockaddr))<0)
+    if(connect(fd,(struct sockaddr *)(&addr), sizeof(struct sockaddr)) < 0)
     {
         printf("connect fail error:%s \n",strerror(errno));
         return -1;
     }
-    int clientFd = accept(fd, (struct sockaddr*)NULL, NULL);
+    net::setNoBlock(fd);
+    
     char buf[]="I am coming,,,,,,,";
-    printf("%d\n",sizeof(buf));
-    while(true){
-        sleep(10);
-        printf("send %s\n",buf);
-        write(fd,buf,sizeof(buf));
-        read(fd,buf,sizeof(buf));
-        printf("recv %s\n",buf);
+
+    while(!isExit){
+        int ret = net::writen(fd,buf,sizeof(buf));
+        if(ret < 0){
+             log(ERROR, "fd:%d read error:%s", fd, strerror(errno));
+             break;
+        }
+        log(INFO, "fd:%d send %s\n", fd, buf);
+        
+        ret = net::readn(fd,buf,sizeof(buf));
+        if(ret < 0){
+             log(ERROR, "fd:%d write error:%s", fd, strerror(errno));
+             break;
+        }
     }
     close(fd);
-    return 0;
+}
+
+void quit(int signo)
+{
+	isExit = true;
+}
+
+int main(int argvs, char *argv[])
+{
+    signal(SIGTERM,quit);
+    
+    for(int i=0; i<10000 && !isExit; i++)       
+    createCoroutine(readWriteRoutine, NULL);
+    
+    yield;
+
+    log(INFO, "exit sucess");
 }

@@ -1,10 +1,8 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <errno.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <signal.h>
+#include <pthread.h>
 #include "scheduler.h"
 #include "socket.h"
 
@@ -41,18 +39,28 @@ int acceptCoroutine(void *arg){
         int *clientFd = new int;
         
         if((*clientFd = net::accept(serverFd)) > 2){
-            log(INFO,"accept fd %d", *clientFd);
+            log(INFO, "accept fd %d", *clientFd);
             createCoroutine(socketHandleCoroutine, (void*)clientFd);
         }else{
             log(ERROR, "accept error:%s", strerror(errno));
-            return -1;
+            break;
         }
     }
+    
+    close(serverFd);
 }
 
 void quit(int signo)
 {
 	isExit = true;
+}
+
+void *fun(void *arg){
+    int serverFd =*(int*)arg;
+    createCoroutine(acceptCoroutine, &serverFd);
+    yield;
+    
+    log(INFO, "exit sucess");
 }
 
 int main(int argc, char** argv){
@@ -81,11 +89,21 @@ int main(int argc, char** argv){
     }
     net::setNoBlock(serverFd);
 
-    createCoroutine(acceptCoroutine, &serverFd);
-    yield;
+    int fd0 = dup(serverFd);
+    int fd1 = dup(serverFd);
+    int fd2 = dup(serverFd);
     
+    pthread_t t0,t1,t2;
+    
+    pthread_create(&t0, NULL, fun, &fd0);
+    pthread_create(&t1, NULL, fun, &fd1);
+    pthread_create(&t2, NULL, fun, &fd2);
+    
+    pthread_join(t0, NULL);
+    pthread_join(t1, NULL);
+    pthread_join(t2, NULL);
+
     close(serverFd);
     
-    log(INFO, "exit sucessfully");
+    log(INFO, "exit sucess");
 }
-

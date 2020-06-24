@@ -9,6 +9,8 @@
 #include <sys/epoll.h>
 #include <errno.h>
 #include <string.h>
+#include <assert.h>
+#include "cormap.h"
 #include "log.h"
 
 namespace EVENT{
@@ -25,11 +27,12 @@ static inline int epollCreate(int max){
 static inline int eventCtl(int epollFd, int fd, int type, int mode){
     epoll_event event;
     event.events = type|EPOLLET;
-    if(type == EVENT::WRITEABLE)    event.events |= EPOLLONESHOT;
-    event.data.ptr = (void*)current;
+    if(type == EVENT::WRITEABLE) event.events |= EPOLLONESHOT;
+    assert(current!=NULL);
+    event.data.ptr = current;
     int ret = epoll_ctl(epollFd, mode, fd, &event);
     if(ret < 0){
-        log(ERROR,"epoll epfd:%d fd:%d type:%d  error: %s", epollFd, fd, type, strerror(errno));
+        log(ERROR,"epoll epfd:%d fd:%d type:%d mode:%d error: %s", epollFd, fd, type, mode, strerror(errno));
     }
     return ret;
 }

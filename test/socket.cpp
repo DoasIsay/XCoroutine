@@ -2,6 +2,8 @@
 
 extern bool isExit;
 
+extern int getErno();
+
 namespace net{
 
 int setNoBlock(int fd, int block) {
@@ -26,10 +28,10 @@ int readn(int fd,char *buf, int len){
     while(!isExit){
         int ret = read(fd, buf+reads, len-reads);
         if(ret < 0){
-            if(errno == EINTR || errno==EAGAIN){
+            int erno = getErno();
+            if(erno == EINTR || erno==EAGAIN){
                 continue;
             }else{
-                printf("read error:%s\n", strerror(errno));
                 return ret;
             }
         }else if(ret == 0){
@@ -47,10 +49,10 @@ int writen(int fd,char *buf, int len){
     while(!isExit){
         int ret = write(fd, buf+writes, len-writes);
         if(ret < 0){
-            if(errno == EINTR || errno==EAGAIN){
+            int erno = getErno();
+            if(erno == EINTR || erno==EAGAIN){
                 continue;
             }else{
-                printf("write error:%s\n", strerror(errno));
                 return ret;
             }
         }
@@ -66,10 +68,10 @@ int accept(int fd){
     int clientFd = 0;
     while(!isExit){
         if((clientFd = accept(serverFd, (struct sockaddr *)NULL, NULL)) <= 0){
-            if(errno == EINTR || errno==EAGAIN){
+            int erno = getErno();
+            if(erno == EINTR || erno==EAGAIN){
                 continue;
             }else{
-                printf("accept error: %s\n", strerror(errno));
                 return -1;
             }   
         }
