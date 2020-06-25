@@ -36,7 +36,7 @@ Coroutine::Coroutine(int (*routine)(void *), void *arg){
     epfd = -1;
     signal = 0;
     timeout = 0;
-    next = NULL;
+    next = this;
     
     stack = NULL;
     this->arg = arg;
@@ -50,7 +50,7 @@ Coroutine::Coroutine(){
     type = -1;
     epfd = -1;
     signal = 0;
-    next = NULL;
+    next = this;
     timeout = 0;
     this->id.cid = 0;
 }

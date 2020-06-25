@@ -10,6 +10,11 @@
 
 #include "locker.h"
 
+template<class T>
+bool isLinked(T item){
+    return item->next != item;
+}
+
 template<class T, class LockerType = Locker>
 class Queue{
 private:
@@ -25,6 +30,8 @@ public:
     
     void push(T item){
         assert(item != NULL);
+        if(isLinked(item))
+            return;
         item->next = NULL;
 
         locker.lock();
@@ -44,6 +51,7 @@ public:
         if(head != NULL){
             item = head;
             head = head->next;
+            item->next = item;
             sizes--;
             if(!head) 
                 tail = NULL;
