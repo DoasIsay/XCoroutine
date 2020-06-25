@@ -86,6 +86,6 @@ int main(int argc, char** argv){
     
     close(serverFd);
     
-    log(INFO, "exit sucessfully");
+    log(INFO, "exit sucess");
 }
 

@@ -1,23 +1,23 @@
 #include <iostream>
 #include "scheduler.h"
-#include <signal.h>
+
 using namespace std;
 
 int test0(void *){
     cout<<"test0 0"<<endl;
-    yield;
+    sleep(1);
     cout<<"test0 0"<<endl;
 }
 
 int test1(void *){
     cout<<"test1 1"<<endl;
-    yield;
+    sleep(6);
     cout<<"test1 1"<<endl;
 }
 
 int test2(void *){
     cout<<"test2 2"<<endl;
-    yield;
+    sleep(3);
     cout<<"test2 2"<<endl;
 }
 
@@ -29,3 +29,4 @@ int main(){
     
     log(INFO, "exit sucess");
 }
+

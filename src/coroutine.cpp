@@ -35,6 +35,7 @@ Coroutine::Coroutine(int (*routine)(void *), void *arg){
     type = -1;
     epfd = -1;
     signal = 0;
+    timeout = 0;
     next = NULL;
     
     stack = NULL;
@@ -45,12 +46,13 @@ Coroutine::Coroutine(int (*routine)(void *), void *arg){
     id.cid = allocCid(this);
 }
 
-Coroutine::Coroutine(int cid){
+Coroutine::Coroutine(){
     type = -1;
     epfd = -1;
     signal = 0;
     next = NULL;
-    this->id.cid = cid;
+    timeout = 0;
+    this->id.cid = 0;
 }
 
 int Coroutine::setStackSize(int size){

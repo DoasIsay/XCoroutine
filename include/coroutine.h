@@ -7,6 +7,7 @@
 #ifndef __COROUTINE__
 #define __COROUTINE__
 
+#include <time.h>
 #include "context.h"
 
 typedef int(*Routine)(void *);
@@ -14,6 +15,7 @@ typedef int(*Routine)(void *);
 class Coroutine{
 private:
     friend void startCoroutine();
+    friend struct compare;
     
     union Id{
         int fd;
@@ -30,8 +32,9 @@ private:
 
     int erno;
     int signal;
+    time_t timeout;
     
-    Coroutine() = delete;
+    //Coroutine() = delete;
     Coroutine(const Coroutine &) = delete;
     Coroutine &operator=(const Coroutine&) = delete;
 
@@ -40,7 +43,7 @@ public:
     
     Coroutine(int (*routine)(void *), void *arg);
 	
-    Coroutine(int cid);
+    Coroutine();
 	
     int setStackSize(int size);
 
@@ -101,6 +104,14 @@ public:
     int getErno(){
         return erno;
     }
+
+    void setTimeout(time_t timeout){
+        this->timeout = timeout;
+    }
+
+    time_t getTimeout(){
+        return timeout;
+    }
     
     ~Coroutine();
 };
@@ -114,4 +125,11 @@ int gettid();
 
 void setErno(int erno);
 int getErno();
+
+struct compare{
+    bool operator()(Coroutine* &left, Coroutine* &right){
+        return left->timeout > right->timeout;
+    }
+};
+
 #endif

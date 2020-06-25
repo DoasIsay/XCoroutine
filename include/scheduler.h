@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <assert.h>
+#include <queue>
 #include "coroutine.h"
 #include "queue.h"
 #include "epoll.h"
@@ -19,12 +20,13 @@
 
 class Scheduler{
 private:
-    Queue<Coroutine*> *runQue;
+    friend void addToRunQue(Coroutine *co);
+    Queue<Coroutine*> runQue;
+    
+    std::priority_queue<Coroutine*, std::vector<Coroutine*>, compare> timerQue;
     
     int epfd;
-    int nextEventIdx;
     int maxEventSize;
-    int firedEventSize;
     epoll_event *events;
 
     Scheduler(int max);
@@ -43,23 +45,17 @@ public:
     
     void wakeup();
     
-    int wait(int fd, int type);
+    int wait(int fd, int type, int timeout);
     
     int schedule();
     
-    Coroutine* next();
+    void runProcess();
+    
+    void timerProcess();
+    
+    void eventProcess();
     
     void signalProcess();
-    
-    void timerInterrupt();
-    
-    void addToRunQue(Coroutine* co){
-        runQue->push(co);
-    }
-    
-    Coroutine* delFromRunQue(){
-        return runQue->pop();
-    }
     
     ~Scheduler();
 };
@@ -69,38 +65,37 @@ void addToRunQue(Coroutine *co);
 void startCoroutine();
 
 static inline int waitOnRead(int fd){
-    Scheduler::Instance()->wait(fd, EVENT::READABLE);
+    Scheduler::Instance()->wait(fd, EVENT::READABLE, 0);
 }
 
 static inline int waitOnWrite(int fd){
-    Scheduler::Instance()->wait(fd, EVENT::WRITEABLE);
+    Scheduler::Instance()->wait(fd, EVENT::WRITEABLE, 0);
+}
+
+static inline int waitOnTimer(int timeout){
+    Scheduler::Instance()->wait(-1, -1, timeout);
 }
 
 static inline void schedule(){
     Scheduler::Instance()->schedule();
 }
 
-#define setEvent(epfd, fd, type)\
-        do{\
-            current->setFd(fd);\
-            current->setType(type);\
-            current->setEpfd(epfd);\
-        }while(0)
-
 static inline void clear(){
-    if(current != NULL && current->getEpfd() > 0){
-        CorMap::Instance()->del(current->getcid());
+    if(!current)
+        return;
+    CorMap::Instance()->del(current->getcid());
+    if(current->getEpfd() > 0){
         epollDelEvent(current->getEpfd(), current->getFd(), current->getType());
-        setEvent(-1, -1, -1);
+        current->setEpfd(-1);
     }
 }
 
 #define yield\
 	do{\
 		if(current == NULL){\
-			current = new Coroutine(0);\
+			current = new Coroutine();\
 		}\
-		Scheduler::Instance()->wait(-1, -1);\
+		waitOnTimer(0);\
 	}while(0)
 	
 #endif
