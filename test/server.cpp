@@ -53,6 +53,7 @@ int acceptCoroutine(void *arg){
 void quit(int signo)
 {
 	isExit = true;
+    stopCoroutines();
 }
 
 int main(int argc, char** argv){

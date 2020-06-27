@@ -57,6 +57,7 @@ int readWriteRoutine(void *arg){
 void quit(int signo)
 {
 	isExit = true;
+    stopCoroutines();
 }
 
 int main(int argvs, char *argv[])

@@ -8,7 +8,11 @@
 #define __COROUTINE__
 
 #include <time.h>
+#include <signal.h>
+#include <sys/types.h>
 #include "context.h"
+
+const static int STACKSIZE = 8192;
 
 typedef int(*Routine)(void *);
 
@@ -21,15 +25,17 @@ private:
         int fd;
         int cid;
     }id;
+    pid_t groupid;
+    
     int type;
     int epfd;
-
+    
     void *arg;
     void *stack;
     int stackSize;
     Routine routine;
     Context context;
-
+    
     int erno;
     int signal;
     time_t timeout;
@@ -81,20 +87,26 @@ public:
     
     void start();
 
+    void stop();
+    
     int getcid(){
-        return id.fd;
+        return id.cid;
     }
 
+    pid_t getGroupid(){
+        return groupid;
+    }
+    
     int getSignal(){
         return signal;
     }
 
     void setSignal(int signo){
-        if(!signo){
-            signal = signo;
+        if(signo == 0){
+            signal = 0;
             return;
         }
-        signal|=signo;
+        signal |= (1<<signo);
     }
 
     void setErno(int erno){

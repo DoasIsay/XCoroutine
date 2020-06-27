@@ -80,7 +80,21 @@ public:
     int cap(){
         return caps;
     }
-        
+
+    bool empty(){
+        return size() == 0;
+    }
+
+    void *next(int &idx){
+        if(!empty())
+        for(; idx < cap(); ){
+            void *value =get(idx++);
+            if(value != NULL)
+                return value;
+        }
+        return NULL;
+    }
+    
     ~Map(){
         if(arr)
             free(arr);
@@ -159,9 +173,23 @@ public:
     int size(){
         return map1->size() + map2->size();
     }
-
+    
     int empty(){
         return size() == 0;
+    }
+    
+    //not thread safe
+    Coroutine *next(){
+        static int idx1 = 0;
+        Coroutine *co = (Coroutine*)map1->next(idx1);
+        if(co != NULL)
+            return co;
+        
+        static int idx2 = 0;
+        co = (Coroutine*)map2->next(idx2);
+        if(co == NULL)
+            idx1 = idx2 = 0;
+        return co;
     }
     
     ~CorMap(){

@@ -13,12 +13,7 @@
 #include "coroutine.h"
 #include "cormap.h"
 
-extern void addToRunQue(Coroutine *co);
-extern void startCoroutine();
-
 __thread Coroutine *current = NULL;
-
-const static int STACKSIZE = 4096;
 
 static int allocCid(Coroutine *co){
     int cid;
@@ -44,6 +39,7 @@ Coroutine::Coroutine(int (*routine)(void *), void *arg){
     this->routine = routine;
     
     id.cid = allocCid(this);
+    groupid = gettid();
 }
 
 Coroutine::Coroutine(){
@@ -53,15 +49,20 @@ Coroutine::Coroutine(){
     next = this;
     timeout = 0;
     this->id.cid = 0;
+    groupid = gettid();
 }
 
 int Coroutine::setStackSize(int size){
     this->stackSize = size;
 }
 
+extern void startCoroutine();
+extern void addToRunQue(Coroutine *co);
+
 void Coroutine::start(){
     if(getcid() < 0)
         return;
+    
     save(&context);
     context.pc = (long)startCoroutine;
     
@@ -70,6 +71,12 @@ void Coroutine::start(){
     
     context.sp = (long)((char*)stack + stackSize);   
     addToRunQue(this);
+}
+
+extern int ckill(Coroutine *co, int signo);
+
+void Coroutine::stop(){
+    ckill(this, SIGTERM);
 }
 
 Coroutine::~Coroutine(){
@@ -88,8 +95,11 @@ int getcid(){
         return 0;
     return current->getcid();
 }
+
 int gettid(){
-    return syscall(__NR_gettid);
+    if(current == NULL)
+        return syscall(__NR_gettid);
+    return current->getGroupid();
 }
 
 int getErno(){

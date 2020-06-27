@@ -1,5 +1,5 @@
 
-all:libtoco.so yield server client multiThreadServer sleep
+all:libtoco.so yield server client multiThreadServer sleep signal
 
 SSRC = $(wildcard  ./src/*.S)
 
@@ -36,6 +36,9 @@ multiThreadServer:$(OBJS)
 
 sleep:$(OBJS)
 	g++ -o sleep ./test/sleep.o -ltoco $(LIBS)
+
+signal:$(OBJS)
+	g++ -o signal ./test/signal.o -ltoco $(LIBS)
 	
 clean:
-	rm -rf ./src/*.o ./test/*.o libtoco.so yield client server multiThreadServer sleep
+	rm -rf ./src/*.o ./test/*.o libtoco.so yield client server multiThreadServer sleep signal

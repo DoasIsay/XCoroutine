@@ -3,11 +3,13 @@
  * 
  * All rights reserved.
  */
+#include "coroutine.h"
 
 typedef void (*SignalHandler)(int);
 extern SignalHandler signalHandler[];
 
-int ckill(int cid, char signo);
-int csignal(SignalHandler handler);
+int ckill(int cid, int signo);
+int ckill(Coroutine *co, int signo);
+int csignal(int signo, SignalHandler handler);
 
-void defaultHandler(int signo);
+void sigdefHandler(int signo);

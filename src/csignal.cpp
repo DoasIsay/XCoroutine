@@ -5,18 +5,55 @@
  */
 
 #include <assert.h>
-#include "coroutine.h"
 #include "csignal.h"
 #include "cormap.h"
 
-SignalHandler signalHandler[32] = {defaultHandler};
+SignalHandler signalHandler[32] = {sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler,
+                                   sigdefHandler
+                                   };
 
-int ckill(int cid, char signo){
+extern void addToSigQue(Coroutine * co);
+
+int ckill(Coroutine *co, int signo){
+    assert(co != NULL);
+    co->setSignal(signo);
+    addToSigQue(co);
+}
+
+int ckill(int cid, int signo){
     Coroutine *co = CorMap::Instance()->get(cid);
     if(co != NULL){
-        if(signo == 0) return 0;
-        
-        co->setSignal(signo);
+        ckill(co, signo);
         return 0;
     }else
         return -1;
@@ -27,6 +64,8 @@ int csignal(int signo, SignalHandler handler){
     signalHandler[signo] = handler;
 }
 
-void defaultHandler(int signo){
+extern void cexit(int status);
 
+void sigdefHandler(int signo){
+    cexit(signo);
 }
