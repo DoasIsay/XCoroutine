@@ -32,14 +32,17 @@ Coroutine::Coroutine(int (*routine)(void *), void *arg){
     signal = 0;
     timeout = 0;
     next = this;
+    intr = false;
     
     stack = NULL;
     this->arg = arg;
-    stackSize = STACKSIZE;
+    stackSize = COR_STACK_SIZE;
     this->routine = routine;
     
     id.cid = allocCid(this);
-    groupid = gettid();
+    groupid = syscall(__NR_gettid);
+    setState(NEW);
+    setPrio(5);
 }
 
 Coroutine::Coroutine(){
@@ -47,9 +50,12 @@ Coroutine::Coroutine(){
     epfd = -1;
     signal = 0;
     next = this;
+    intr = false;
     timeout = 0;
     this->id.cid = 0;
-    groupid = gettid();
+    groupid = syscall(__NR_gettid);
+    setState(NEW);
+    setPrio(8);
 }
 
 int Coroutine::setStackSize(int size){
@@ -66,10 +72,11 @@ void Coroutine::start(){
     save(&context);
     context.pc = (long)startCoroutine;
     
-    stack = malloc(stackSize);
+    stack = (char*)malloc(stackSize);
     assert(stack != NULL);
     
-    context.sp = (long)((char*)stack + stackSize);   
+    context.sp = (long)(stack + stackSize);
+    setState(RUNNABLE);
     addToRunQue(this);
 }
 
@@ -77,6 +84,7 @@ extern int ckill(Coroutine *co, int signo);
 
 void Coroutine::stop(){
     ckill(this, SIGTERM);
+    setState(STOPPED);
 }
 
 Coroutine::~Coroutine(){
@@ -101,16 +109,3 @@ int gettid(){
         return syscall(__NR_gettid);
     return current->getGroupid();
 }
-
-int getErno(){
-    if(current == NULL)
-        return 0;
-    return current->getErno();
-}
-
-void setErno(int erno){
-    if(current == NULL)
-        return;
-    current->setErno(erno);
-}
-

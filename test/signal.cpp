@@ -53,17 +53,14 @@ void sigterm(int signo){
 }
 
 int main(){
-    
-    signal(SIGTERM, sigterm);
-    
     csignal(SIGHUP, sighup);
+    signal(SIGTERM, sigterm);
     
     co0 = createCoroutine(test0, NULL);
     co1 = createCoroutine(test1, NULL);
     co2 = createCoroutine(test2, NULL);
     co3 = createCoroutine(deadLoop, NULL);
-    
     yield;
+    
     log(INFO, "exit sucess");
 }
-

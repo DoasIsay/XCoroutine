@@ -20,14 +20,14 @@
 
 class Scheduler{
 private:
-    enum{STOPED, RUNNING};
-    volatile static int status;
+    int idx;
+    int running;
+    volatile static int state;
     
-    friend void addToRunQue(Coroutine *co);
     friend void addToSigQue(Coroutine *co);
     friend void addToTimerQue(Coroutine *co);
     
-    Queue<Coroutine*> runQue;
+    Queue<Coroutine*> runQue[2][SCH_PRIO_SIZE];
     static Queue<Coroutine*, SpinLocker> sigQue;
     
     std::priority_queue<Coroutine*, std::vector<Coroutine*>, compare> timerQue;
@@ -60,7 +60,7 @@ public:
     void wakeup();
     
     int wait(int fd, int type, int timeout);
-    
+   
     void schedule();
 
     void doSignal();
@@ -72,13 +72,19 @@ public:
     void eventProcess();
     
     void signalProcess();
-
+    
     pid_t getGrouid(){
         return groupid;
     }
 
     char *getStack(){
         return stack;
+    }
+    
+    Coroutine* next();
+    
+    void addToRunQue(Coroutine *co){
+        runQue[!running][co->getPrio()].push(co);
     }
     
     ~Scheduler();
@@ -94,15 +100,15 @@ void startCoroutine();
 void stopCoroutines();
 
 static inline int waitOnRead(int fd){
-    Scheduler::Instance()->wait(fd, EVENT::READABLE, 0);
+    return Scheduler::Instance()->wait(fd, EVENT::READABLE, 0);
 }
 
 static inline int waitOnWrite(int fd){
-    Scheduler::Instance()->wait(fd, EVENT::WRITEABLE, 0);
+    return Scheduler::Instance()->wait(fd, EVENT::WRITEABLE, 0);
 }
 
 static inline int waitOnTimer(int timeout){
-    Scheduler::Instance()->wait(-1, -1, timeout);
+    return Scheduler::Instance()->wait(-1, -1, timeout);
 }
 
 static inline void schedule(){
@@ -123,6 +129,7 @@ static inline void clear(){
 	do{\
 		if(current == NULL){\
 			current = new Coroutine();\
+			current->start();\
 		}\
 		waitOnTimer(0);\
 	}while(0)

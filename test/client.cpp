@@ -7,8 +7,8 @@
 #include <errno.h>
 #include <time.h>
 #include <string.h>
+#include <stdlib.h>
 #include "scheduler.h"
-#include "socket.h"
 #include <signal.h>
 
 bool isExit = false;
@@ -33,19 +33,18 @@ int readWriteRoutine(void *arg){
         printf("connect fail error:%s \n",strerror(errno));
         return -1;
     }
-    net::setNoBlock(fd);
     
     char buf[]="I am coming,,,,,,,";
-
+    
     while(!isExit){
-        int ret = net::writen(fd,buf,sizeof(buf));
+        int ret = write(fd,buf,sizeof(buf));
         if(ret < 0){
              log(ERROR, "fd:%d read error:%s", fd, strerror(errno));
              break;
         }
         log(INFO, "fd:%d send %s\n", fd, buf);
         
-        ret = net::readn(fd,buf,sizeof(buf));
+        ret = read(fd,buf,sizeof(buf));
         if(ret < 0){
              log(ERROR, "fd:%d write error:%s", fd, strerror(errno));
              break;
@@ -56,7 +55,7 @@ int readWriteRoutine(void *arg){
 
 void quit(int signo)
 {
-	isExit = true;
+    isExit = true;
     stopCoroutines();
 }
 
@@ -68,6 +67,6 @@ int main(int argvs, char *argv[])
     createCoroutine(readWriteRoutine, NULL);
     
     yield;
-
+    
     log(INFO, "exit sucess");
 }
