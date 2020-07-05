@@ -10,9 +10,17 @@
 #include <time.h>
 #include <signal.h>
 #include <sys/types.h>
+#include <unistd.h>
 #include "context.h"
 
-const static int STACKSIZE = 8192;
+enum{
+    NEW,
+    RUNNABLE,
+    RUNNING,
+    WAITING,
+    STOPPED,
+    DEAD
+};
 
 typedef int(*Routine)(void *);
 
@@ -21,26 +29,28 @@ private:
     friend void startCoroutine();
     friend struct compare;
     
+    int state;
+    int prio;
+    
+    int type;
+    int epfd;
+    
     union Id{
         int fd;
         int cid;
     }id;
     pid_t groupid;
     
-    int type;
-    int epfd;
-    
     void *arg;
-    void *stack;
+    char *stack;
     int stackSize;
     Routine routine;
     Context context;
     
-    int erno;
     int signal;
+    bool  intr;
     time_t timeout;
     
-    //Coroutine() = delete;
     Coroutine(const Coroutine &) = delete;
     Coroutine &operator=(const Coroutine&) = delete;
 
@@ -53,6 +63,10 @@ public:
 	
     int setStackSize(int size);
 
+    char* getStack(){
+        return stack;
+    }
+    
     int setContext(Context &cxt){
         context = cxt;
     }
@@ -62,7 +76,7 @@ public:
     }
 
     void setFd(int fd){
-        this->id.fd = fd;
+        id.fd = fd;
     }
     
     int getFd(){
@@ -77,8 +91,8 @@ public:
         return type;
     }
 
-    void setEpfd(int fd){
-        epfd = fd;
+    void setEpfd(int epfd){
+        this->epfd = epfd;
     }
 
     int getEpfd(){
@@ -108,15 +122,7 @@ public:
         }
         signal |= (1<<signo);
     }
-
-    void setErno(int erno){
-        this->erno = erno;
-    }
-
-    int getErno(){
-        return erno;
-    }
-
+    
     void setTimeout(time_t timeout){
         this->timeout = timeout;
     }
@@ -124,19 +130,40 @@ public:
     time_t getTimeout(){
         return timeout;
     }
+
+    void setState(int state){
+        this->state = state;
+    }
+
+    int getState(){
+        return state;
+    }
+
+    void setIntr(bool intr){
+        this->intr = intr;
+    }
+
+    bool getIntr(){
+        return intr;
+    }
     
+    void setPrio(int prio){
+        assert(prio<=8 && prio>=1);
+        this->prio = prio - 1;
+    }
+
+    int getPrio(){
+        return prio;
+    }
     ~Coroutine();
 };
 
 extern __thread Coroutine *current;
 
-Coroutine *createCoroutine(int (*routine)(void *),void *arg);
+Coroutine *createCoroutine(int (*routine)(void *), void *arg);
 
 int getcid();
 int gettid();
-
-void setErno(int erno);
-int getErno();
 
 struct compare{
     bool operator()(Coroutine* &left, Coroutine* &right){

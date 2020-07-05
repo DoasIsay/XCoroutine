@@ -46,13 +46,16 @@ extern void addToSigQue(Coroutine * co);
 
 int ckill(Coroutine *co, int signo){
     assert(co != NULL);
+    if(signo == 0) return 0;
     co->setSignal(signo);
     addToSigQue(co);
+    return 0;
 }
 
 int ckill(int cid, int signo){
     Coroutine *co = CorMap::Instance()->get(cid);
     if(co != NULL){
+        if(signo == 0) return 0;
         ckill(co, signo);
         return 0;
     }else

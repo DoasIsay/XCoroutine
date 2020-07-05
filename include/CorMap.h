@@ -84,7 +84,7 @@ public:
     bool empty(){
         return size() == 0;
     }
-
+    
     void *next(int &idx){
         if(!empty())
         for(; idx < cap(); ){
@@ -145,7 +145,7 @@ public:
         locker.unlock();
         return ret;
     }
-
+    
     Coroutine *get(int key){
         Coroutine *co = NULL;
         locker.lock();
@@ -169,7 +169,7 @@ public:
         locker.unlock();
         return ret;
     }
-
+    
     int size(){
         return map1->size() + map2->size();
     }
@@ -180,15 +180,15 @@ public:
     
     //not thread safe
     Coroutine *next(){
-        static int idx1 = 0;
+        static int idx1 = 1;
         Coroutine *co = (Coroutine*)map1->next(idx1);
         if(co != NULL)
             return co;
         
-        static int idx2 = 0;
+        static int idx2 = 1;
         co = (Coroutine*)map2->next(idx2);
         if(co == NULL)
-            idx1 = idx2 = 0;
+            idx1 = idx2 = 1;
         return co;
     }
     
@@ -201,4 +201,3 @@ public:
 };
 
 #endif
-
