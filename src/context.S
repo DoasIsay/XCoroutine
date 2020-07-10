@@ -3,7 +3,6 @@
   * 
   * All rights reserved.
   */
- 
 .globl save
 .text
 save:
@@ -22,6 +21,7 @@ save:
     movl (%eax), %ebx
     movl $0, %eax
     ret
+    
 #elif __x86_64__
     movq %rbx, (%rdi)
     movq %rcx, 8(%rdi)
@@ -38,6 +38,7 @@ save:
     push %rax
     movl $0, %eax
     ret
+    
 #endif
 
 .globl restore
@@ -45,30 +46,37 @@ save:
 restore:
 #ifdef __i386__
     movl 4(%esp), %eax
+    movl 8(%esp), %edi
     movl (%eax), %ebx
     movl 4(%eax), %ecx
     movl 8(%eax), %edx
     movl 12(%eax), %esp
     movl 16(%eax), %ebp
     movl 20(%eax), %esi
-    movl 24(%eax), %edi
-    movl 28(%eax), %eax
-    movl %eax, (%esp)
+    push 28(%eax)
+    push 24(%eax)
+    call %edi
+    pop %edi
+    pop(%esp)
     movl $1, %eax
     ret
+    
 #elif __x86_64__
     movq (%rdi), %rbx
     movq 8(%rdi), %rcx
     movq 16(%rdi), %rdx
     movq 24(%rdi), %rsp
     movq 32(%rdi), %rbp
-    movq 40(%rdi), %rsi
     movq 48(%rdi), %r12
     movq 56(%rdi), %r13
     movq 64(%rdi), %r14
     movq 72(%rdi), %r15
-    movq 80(%rdi), %rax
-    movq %rax, (%rsp)
+    push  80(%rdi)
+    push  40(%rdi)
+    call    %rsi
+    pop   %rsi
+    pop   (%rsp)
     movl $1, %eax
     ret
+    
 #endif

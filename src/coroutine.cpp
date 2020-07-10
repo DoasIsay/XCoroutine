@@ -13,6 +13,8 @@
 #include "coroutine.h"
 #include "cormap.h"
 
+const static int DEF_PRIO = SCH_PRIO_SIZE/2;
+
 __thread Coroutine *current = NULL;
 
 static int allocCid(Coroutine *co){
@@ -26,7 +28,8 @@ static int allocCid(Coroutine *co){
     return cid; 
 }
 
-Coroutine::Coroutine(int (*routine)(void *), void *arg){
+void Coroutine::init(Routine routine, void *arg,
+        int prio, int cid){
     type = -1;
     epfd = -1;
     signal = 0;
@@ -39,45 +42,42 @@ Coroutine::Coroutine(int (*routine)(void *), void *arg){
     stackSize = COR_STACK_SIZE;
     this->routine = routine;
     
-    id.cid = allocCid(this);
+    id.cid = cid;
     groupid = syscall(__NR_gettid);
     setState(NEW);
-    setPrio(5);
+    setPrio(prio);
+}
+
+
+Coroutine::Coroutine(Routine routine, void *arg){
+    init(routine, arg, DEF_PRIO, allocCid(this));
 }
 
 Coroutine::Coroutine(){
-    type = -1;
-    epfd = -1;
-    signal = 0;
-    next = this;
-    intr = false;
-    timeout = 0;
-    this->id.cid = 0;
-    groupid = syscall(__NR_gettid);
-    setState(NEW);
-    setPrio(8);
-}
-
-int Coroutine::setStackSize(int size){
-    this->stackSize = size;
+    init(NULL, NULL ,SCH_PRIO_SIZE, 0);
 }
 
 extern void startCoroutine();
 extern void addToRunQue(Coroutine *co);
 
-void Coroutine::start(){
-    if(getcid() < 0)
-        return;
+int Coroutine::start(){
+    if(getcid() < 0) return -1;
     
     save(&context);
     context.pc = (long)startCoroutine;
-    
-    stack = (char*)malloc(stackSize);
+
+    if(stack == NULL) stack = allocStack(stackSize);
     assert(stack != NULL);
-    
+
+    #ifdef STACK_CHECK
+    context.sp = (long)(stack + stackSize - 16);
+    #else
     context.sp = (long)(stack + stackSize);
+    #endif
+    
     setState(RUNNABLE);
     addToRunQue(this);
+    return 0;
 }
 
 extern int ckill(Coroutine *co, int signo);
@@ -88,24 +88,21 @@ void Coroutine::stop(){
 }
 
 Coroutine::~Coroutine(){
-    if(stack != NULL)
-        free(stack);
+    if(stack != NULL) free(stack);
 }
 
-Coroutine *createCoroutine(int (*routine)(void *),void *arg){
+Coroutine *createCoroutine(int (*routine)(void *), void *arg){
     Coroutine *co= new Coroutine(routine,arg);
     co->start();
     return co;
 }
 
 int getcid(){
-    if(current == NULL)
-        return 0;
+    if(current == NULL) return 0;
     return current->getcid();
 }
 
 int gettid(){
-    if(current == NULL)
-        return syscall(__NR_gettid);
+    if(current == NULL) return syscall(__NR_gettid);
     return current->getGroupid();
 }

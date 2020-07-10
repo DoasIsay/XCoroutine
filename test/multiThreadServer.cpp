@@ -15,8 +15,12 @@ int socketHandleCoroutine(void *arg){
     
     while(!isExit){
         int ret = read(fd, buf, 19);
-        if(ret <= 0)
+        if(ret == 0)
             break;
+        else if(ret < 0){
+            log(ERROR, "fd:%d read error:%s\n", fd, strerror(errno));
+            break;
+        }
         log(INFO, "fd:%d recv %s", fd, buf);
         
         ret = write(fd, buf, 19);
@@ -59,6 +63,7 @@ void *fun(void *arg){
     int fd = *(int*)arg;
     
     Coroutine *co = createCoroutine(acceptCoroutine, &fd);
+    
     co->setPrio(1);
     yield;
     
@@ -84,7 +89,7 @@ int main(int argc, char** argv){
         printf("bind socket error: %s)\n", strerror(errno));
         return 0;
     }
-    if(listen(serverFd, 10) < 0){
+    if(listen(serverFd, 10000) < 0){
         printf("listen socket error: %s\n", strerror(errno));
         return 0;
     }

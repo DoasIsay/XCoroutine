@@ -42,7 +42,7 @@ int readWriteRoutine(void *arg){
              log(ERROR, "fd:%d read error:%s", fd, strerror(errno));
              break;
         }
-        log(INFO, "fd:%d send %s\n", fd, buf);
+        //log(INFO, "fd:%d send %s\n", fd, buf);
         
         ret = read(fd,buf,sizeof(buf));
         if(ret < 0){
@@ -61,8 +61,9 @@ void quit(int signo)
 
 int main(int argvs, char *argv[])
 {
-    signal(SIGTERM,quit);
-    
+    signal(SIGINT, quit);
+    signal(SIGTERM, quit);
+
     for(int i=0; i<10000 && !isExit; i++)       
     createCoroutine(readWriteRoutine, NULL);
     

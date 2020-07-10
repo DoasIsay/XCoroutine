@@ -11,5 +11,5 @@ extern SignalHandler signalHandler[];
 int ckill(int cid, int signo);
 int ckill(Coroutine *co, int signo);
 int csignal(int signo, SignalHandler handler);
-
+void doSignal();
 void sigdefHandler(int signo);

@@ -10,7 +10,7 @@
 bool isExit = false;
 
 int socketHandleCoroutine(void *arg){
-    char buf[256];
+    char buf[32];
     int fd = *(int*)arg;
     
     log(INFO, "start socketHandleCoroutine fd:%d", fd);
@@ -50,7 +50,7 @@ int acceptCoroutine(void *arg){
         log(ERROR, "bind socket error: %s)\n", strerror(errno));
         return 0;
     }
-    if(listen(serverFd, 10) < 0){
+    if(listen(serverFd, 10000) < 0){
         log(ERROR, "listen socket error: %s\n", strerror(errno));
         return 0;
     }
@@ -66,6 +66,7 @@ int acceptCoroutine(void *arg){
             log(ERROR, "accept error:%s", strerror(errno));
             return -1;
         }
+        
     }
     
     close(serverFd);

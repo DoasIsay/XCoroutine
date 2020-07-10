@@ -9,7 +9,7 @@ OBJS =  $(patsubst %.S,%.o,$(SSRC)) $(patsubst %.cpp,%.o,$(CPPSRC))
 
 INCLUDES = -I./test -I./include
 
-CFLAGS = -std=c++0x -fPIC -shared -fno-stack-protector -DSCH_PRIO_SIZE=8 -DSCH_STACK_SIZE=8192 -DCOR_STACK_SIZE=8192 
+CFLAGS = -std=c++0x -fPIC -shared  -DSCH_PRIO_SIZE=8 -DSCH_STACK_SIZE=4096 -DCOR_STACK_SIZE=4096 -DSTACK_CHECK -DSTACK_SEPARATE -fstack-protector-all
 
 LIBS = -L./ 
 

@@ -28,7 +28,7 @@ class Coroutine{
 private:
     friend void startCoroutine();
     friend struct compare;
-    
+
     int state;
     int prio;
     
@@ -52,17 +52,26 @@ private:
     time_t timeout;
     
     Coroutine(const Coroutine &) = delete;
-    Coroutine &operator=(const Coroutine&) = delete;
+    Coroutine &operator=(const Coroutine&) = delete;
 
+private:
+    void init(Routine routine, void *arg, int prio, int cid);
+    
 public:
     Coroutine *next;
     
-    Coroutine(int (*routine)(void *), void *arg);
+    Coroutine(Routine routine, void *arg);
 	
     Coroutine();
 	
-    int setStackSize(int size);
+    void setStackSize(int size){
+        this->stackSize = size;
+    }
 
+    int getStackSize(){
+        return stackSize;
+    }
+    
     char* getStack(){
         return stack;
     }
@@ -99,7 +108,7 @@ public:
         return epfd;
     }
     
-    void start();
+    int start();
 
     void stop();
     
@@ -148,10 +157,10 @@ public:
     }
     
     void setPrio(int prio){
-        assert(prio<=8 && prio>=1);
+        assert(prio<=SCH_PRIO_SIZE && prio>=1);
         this->prio = prio - 1;
     }
-
+    
     int getPrio(){
         return prio;
     }
