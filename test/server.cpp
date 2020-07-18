@@ -5,7 +5,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <signal.h>
-#include "scheduler.h"
+#include "coroutine.h"
+#include "log.h"
 
 bool isExit = false;
 
@@ -64,7 +65,7 @@ int acceptCoroutine(void *arg){
             createCoroutine(socketHandleCoroutine, (void*)clientFd);
         }else{
             log(ERROR, "accept error:%s", strerror(errno));
-            return -1;
+            break;
         }
         
     }
@@ -79,7 +80,8 @@ void quit(int signo)
 }
 
 int main(int argc, char** argv){
-    signal(SIGTERM,quit);
+    signal(SIGINT, quit);
+    signal(SIGTERM, quit);
     
     Coroutine *co = createCoroutine(acceptCoroutine, NULL);
     co->setPrio(1);

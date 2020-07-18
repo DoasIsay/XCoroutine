@@ -13,12 +13,13 @@
 #include <assert.h>
 #include <queue>
 #include "coroutine.h"
+#include "context.h"
+#include "memory.h"
+#include "cormap.h"
 #include "queue.h"
 #include "epoll.h"
-#include "cormap.h"
 #include "log.h"
 
-extern __thread Coroutine* last;
 
 class Scheduler{
 private:
@@ -52,7 +53,6 @@ private:
     static __thread Scheduler *instance;
     
 public:
-    
     static Scheduler* Instance(){
         if(!instance)
             instance = new Scheduler(1024);
@@ -61,9 +61,9 @@ public:
 
     void stop();
     
-    void wakeup();
+    void wakeup(Coroutine *co);
     
-    int wait(int fd, int type, int timeout);
+    int  wait(int fd, int type, int timeout);
    
     void schedule();
     
@@ -98,33 +98,23 @@ void addToRunQue(Coroutine *co);
 void addToSigQue(Coroutine *co);
 void addToTimerQue(Coroutine *co);
 
-void cexit(int status);
-void startCoroutine();
 void stopCoroutines();
 
+extern __thread Coroutine *last;
+
 static inline int wait(int fd, int type, int timeout){
+    int ret = 0;
     assert(current != NULL);
     if(save(current->getContext())){
-    if(last != NULL){
-        //now we can delete last coroutine safely on current coroutine stack
-        delete last;
-        last = NULL;
+        if(current->getIntr()){
+            current->setIntr(false);
+            return_check(-1);
+        }
+        return_check(1);
     }
-    if(current->getIntr()){
-        current->setIntr(false);
-        return -1;
-    }
-    return 1;
-    }
-    
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
 
     #ifdef STACK_SEPARATE
-    #ifdef STACK_CHECK
-    long sp = (long)(Scheduler::Instance()->getStack() + SCH_STACK_SIZE - 8);
-    #else
     long sp = (long)(Scheduler::Instance()->getStack() + SCH_STACK_SIZE);
-    #endif
     //switch coroutine stack to scheduler stack
     #ifdef __i386__
     asm("movl %0,%%esp;"::"m"(sp));
@@ -133,41 +123,37 @@ static inline int wait(int fd, int type, int timeout){
     #endif
     #endif
     
-    return Scheduler::Instance()->wait(fd, type, timeout);
+    Scheduler::Instance()->wait(fd, type, timeout);
 }
 
 static inline int waitOnRead(int fd){
-    return wait(fd, EVENT::READABLE, 0);
+    return_check(wait(fd, EVENT::READABLE, 0));
 }
 
 static inline int waitOnWrite(int fd){
-    return wait(fd, EVENT::WRITEABLE, 0);
+    return_check(wait(fd, EVENT::WRITEABLE, 0));
 }
 
-static inline int waitOnTimer(int timeout){
-    return wait(-1, -1, timeout);
-}
+int  waitOnTimer(int timeout);
+
+void wakeup(Coroutine *co);
 
 static inline void schedule(){
     Scheduler::Instance()->schedule();
 }
 
+
 static inline void clear(){
-    if(!current) return;
+    if(!current) return_check();
     CorMap::Instance()->del(current->getcid());
     if(current->getEpfd() > 0){
         epollDelEvent(current->getEpfd(), current->getFd(), current->getType());
         current->setEpfd(-1);
     }
+    return_check();
 }
 
-#define yield\
-	do{\
-		if(current == NULL){\
-			current = new Coroutine();\
-			current->start();\
-		}\
-		waitOnTimer(0);\
-	}while(0)
-	
+void cexit(int status);
+void startCoroutine();
+
 #endif

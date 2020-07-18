@@ -9,9 +9,9 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <assert.h>
-#include "log.h"
 #include "coroutine.h"
 #include "cormap.h"
+#include "memory.h"
 
 const static int DEF_PRIO = SCH_PRIO_SIZE/2;
 
@@ -46,6 +46,10 @@ void Coroutine::init(Routine routine, void *arg,
     groupid = syscall(__NR_gettid);
     setState(NEW);
     setPrio(prio);
+    
+    #ifdef STACK_CHECK
+    lowMagic = highMagic = 0x0123456789abcde0;
+    #endif
 }
 
 
@@ -59,6 +63,7 @@ Coroutine::Coroutine(){
 
 extern void startCoroutine();
 extern void addToRunQue(Coroutine *co);
+extern int  ckill(Coroutine *co, int signo);
 
 int Coroutine::start(){
     if(getcid() < 0) return -1;
@@ -66,11 +71,11 @@ int Coroutine::start(){
     save(&context);
     context.pc = (long)startCoroutine;
 
-    if(stack == NULL) stack = allocStack(stackSize);
+    if(stack == NULL) stack = allocMem(stackSize);
     assert(stack != NULL);
 
     #ifdef STACK_CHECK
-    context.sp = (long)(stack + stackSize - 16);
+    context.sp = (long)(stack + stackSize - 8);
     #else
     context.sp = (long)(stack + stackSize);
     #endif
@@ -80,15 +85,14 @@ int Coroutine::start(){
     return 0;
 }
 
-extern int ckill(Coroutine *co, int signo);
-
 void Coroutine::stop(){
     ckill(this, SIGTERM);
     setState(STOPPED);
 }
 
 Coroutine::~Coroutine(){
-    if(stack != NULL) free(stack);
+    STACK_OVERFLOW_CHECK;
+    if(stack != NULL) freeMem(stack, stackSize);
 }
 
 Coroutine *createCoroutine(int (*routine)(void *), void *arg){

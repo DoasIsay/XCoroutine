@@ -11,7 +11,8 @@
 
 #define INTHZ 10
 
-__thread Coroutine* last = NULL;
+__thread Coroutine *last = NULL;
+
 __thread Scheduler* Scheduler::instance = NULL;
 
 Queue<Coroutine*, SpinLocker> Scheduler::sigQue;
@@ -30,7 +31,7 @@ Scheduler::Scheduler(int max =1024){
     groupid = syscall(__NR_gettid);
     
     #ifdef STACK_SEPARATE
-    stack = allocStack(SCH_STACK_SIZE);
+    stack = allocMem(SCH_STACK_SIZE);
     #endif
 }
 
@@ -43,16 +44,16 @@ Scheduler::Scheduler(int max =1024){
 
 int Scheduler::wait(int fd, int type, int timeout){
     if(fd > 0){
-    current->setState(WAITING);
-    if(current->getEpfd() < 0){
-        CorMap::Instance()->del(current->getcid());
-        setEvent(epfd, fd, type);
-        epollAddEvent(epfd, fd, type);
-        CorMap::Instance()->set(fd, current);
-    }else if(current->getType() != type){
-        current->setType(type);
-        epollModEvent(epfd, fd, type);
-    }
+        current->setState(WAITING);
+        if(current->getEpfd() < 0){
+            CorMap::Instance()->del(current->getcid());
+            setEvent(epfd, fd, type);
+            epollAddEvent(epfd, fd, type);
+            CorMap::Instance()->set(fd, current);
+        }else if(current->getType() != type){
+            current->setType(type);
+            epollModEvent(epfd, fd, type);
+        }
     }else if(timeout <= 0){
         current->setState(RUNNABLE);
         addToRunQue(current);
@@ -64,21 +65,101 @@ int Scheduler::wait(int fd, int type, int timeout){
         timerQue.push(current);
     }
     
-    #ifdef STACK_SEPARATE
-    STACK_OVERFLOW_CHECK(stack, SCH_STACK_SIZE);
-    #else
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
-    #endif
+    STACK_OVERFLOW_CHECK;
     
     schedule();
 }
 
+inline void Scheduler::wakeup(Coroutine *co){
+    current = co;
+    assert(co != NULL);
+    assert(co->getState() != DEAD);
+    
+    if(getcid() == 0)
+        state = DEAD;
+    else if(state != STOPPED &&
+        state != DEAD){
+        state = RUNNABLE;
+    }
+    
+    STACK_OVERFLOW_CHECK;
+    co->setState(RUNNING);
+    restore(co->getContext(), (long)doSignal);
+}
+
+Coroutine* Scheduler::next(){
+    Coroutine *co = NULL;
+    
+    for(; idx < SCH_PRIO_SIZE; idx++){
+        if(runQue[running][idx].empty())
+            continue;
+        co = runQue[running][idx].pop();
+        break;
+    }
+    idx = 0;
+    running = !running;
+
+    return_check(co);
+}
+
+void Scheduler::runProcess(){
+    Coroutine *co= next();
+    if(co == NULL) return_check();
+
+    if(co->getcid() != 0 ||
+        CorMap::Instance()->empty()){
+        wakeup(co);
+    }else{
+        addToRunQue(co);
+    }
+    
+    return_check();
+}
+
+inline void Scheduler::timerProcess(){
+    Coroutine *co = NULL;
+    if(state != RUNNING || timerQue.empty())
+        return_check();
+    
+    co = timerQue.top();
+    if(co->getTimeout() > time(NULL))
+        return_check();
+    
+    timerQue.pop();
+    co->setState(RUNNABLE);
+    co->setTimeout(0);
+    addToRunQue(co);
+    
+    return_check();
+}
+
+void Scheduler::eventProcess(){  
+    if(state != RUNNING) return_check();
+    
+    int firedEventSize = epollWait(epfd,
+                                   events,
+                                   maxEventSize,
+                                   INTHZ);
+    int nextEventIdx = 0;
+    for(; nextEventIdx < firedEventSize; nextEventIdx++){
+        Coroutine *co = NULL;
+        
+        co = (Coroutine*)events[nextEventIdx].data.ptr;
+        assert(co->getState() != DEAD);
+        co->setState(RUNNABLE);
+        addToRunQue(co);
+    }
+    
+    return_check();
+}
+
 void Scheduler::signalProcess(){
     Coroutine *co = sigQue.pop();
-    if(co == NULL) goto out;
+    if(co == NULL) return_check();
     
-    if(co->getGroupid() == groupid){
+    if(true || co->getGroupid() == groupid){
         if(co->getState() == WAITING) co->setIntr(true);
+        
         co->setState(RUNNABLE);
         assert(co->getGroupid() != 0);
         addToRunQue(co);
@@ -86,123 +167,7 @@ void Scheduler::signalProcess(){
         sigQue.push(co);
     }
     
-out:
-    #ifdef STACK_SEPARATE
-    STACK_OVERFLOW_CHECK(stack, SCH_STACK_SIZE);
-    #else
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
-    #endif
-}
-
-inline void Scheduler::wakeup(){
-    assert(current != NULL);
-    assert(current->getState() != DEAD);
-    
-    if(getcid() == 0) state = DEAD;
-    else if(state != STOPPED &&
-        state != DEAD){
-        state = RUNNABLE;
-    }
-    
-    current->setState(RUNNING);
-    
-    /* first time run on main coroutine stack, check will failed
-    #ifdef STACK_SEPARATE
-    STACK_OVERFLOW_CHECK(stack, SCH_STACK_SIZE);
-    #else
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
-    #endif
-    */
-    
-    restore(current->getContext(), (long)doSignal);
-}
-
-Coroutine* Scheduler::next(){
-    Coroutine *co = NULL;
-    if(SCH_PRIO_SIZE == 1){
-        if(!runQue[running][0].empty()) co = runQue[running][0].pop();
-        if(co == NULL) running = !running;
-        goto out;
-    }
-        
-    for(; idx < SCH_PRIO_SIZE; idx++){
-        if(runQue[running][idx].empty()) continue;
-        co = runQue[running][idx].pop();
-        goto out;
-    }
-    idx = 0;
-    running = !running;
-    
-out:
-    #ifdef STACK_SEPARATE
-    STACK_OVERFLOW_CHECK(stack, SCH_STACK_SIZE);
-    #else
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
-    #endif
-    
-    return co;
-}
-void Scheduler::runProcess(){
-    Coroutine *co= next();
-    if(co == NULL) goto out;
-
-    if(co->getcid() != 0 ||
-        CorMap::Instance()->empty()){
-        current = co;
-        wakeup();
-    }else{
-        addToRunQue(co);
-    }
-
-out:
-    #ifdef STACK_SEPARATE
-    STACK_OVERFLOW_CHECK(stack, SCH_STACK_SIZE);
-    #else
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
-    #endif
-}
-
-void Scheduler::eventProcess(){
-    int firedEventSize = 0;
-    int nextEventIdx = 0;
-    
-    if(state != RUNNING) goto out;
-    
-    firedEventSize = epollWait(epfd, events, maxEventSize, INTHZ);
-    for(; nextEventIdx < firedEventSize; nextEventIdx++){
-        Coroutine *co = (Coroutine*)events[nextEventIdx].data.ptr;
-        assert(co->getState() != DEAD);
-        co->setState(RUNNABLE);
-        addToRunQue(co);
-    }
-    
-out:
-    #ifdef STACK_SEPARATE
-    STACK_OVERFLOW_CHECK(stack, SCH_STACK_SIZE);
-    #else
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
-    #endif
-
-}
-
-inline void Scheduler::timerProcess(){
-    Coroutine *co = NULL;
-    if(state != RUNNING || timerQue.empty()) goto out;
-    
-    co = timerQue.top();
-    if(co->getTimeout() > time(NULL)) goto out;
-    
-    timerQue.pop();
-    co->setState(RUNNABLE);
-    co->setTimeout(0);
-    addToRunQue(co);
-    
-out:
-    #ifdef STACK_SEPARATE
-    STACK_OVERFLOW_CHECK(stack, SCH_STACK_SIZE);
-    #else
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
-    #endif
+    return_check();
 }
 
 void Scheduler::schedule(){
@@ -215,13 +180,6 @@ void Scheduler::schedule(){
         eventProcess();
         signalProcess();
     }
-
-    //never happen
-    #ifdef STACK_SEPARATE
-    STACK_OVERFLOW_CHECK(stack, SCH_STACK_SIZE);
-    #else
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
-    #endif
 }
 
 void Scheduler::stop(){
@@ -229,7 +187,7 @@ void Scheduler::stop(){
     
     while(true){
         Coroutine *co = CorMap::Instance()->next();
-        if(co == NULL) return;
+        if(co == NULL) return_check();
         co->stop();
     }
 }
@@ -238,37 +196,52 @@ Scheduler::~Scheduler(){
     close(epfd);
     free(events);
     #ifdef STACK_SEPARATE
-    free(stack);
+    freeMem(stack, SCH_STACK_SIZE);
     #endif
 }
 
 void addToRunQue(Coroutine *co){
     Scheduler::Instance()->addToRunQue(co);
+    return_check();
 }
 
 void addToSigQue(Coroutine *co){
     Scheduler::Instance()->sigQue.push(co);
+    return_check();
 }
 
 void addToTimerQue(Coroutine *co){
     Scheduler::Instance()->timerQue.push(co);
+    return_check();
+}
+
+int waitOnTimer(int timeout){
+    return_check(wait(-1, -1, timeout));
+}
+
+void wakeup(Coroutine *co){
+    Scheduler::Instance()->wakeup(co);
+    return_check();
+}
+
+void stopCoroutines(){
+    Scheduler::Instance()->stop();
+    return_check();
 }
 
 void cexit(int status){
+    STACK_OVERFLOW_CHECK;
     current->setState(DEAD);
-    
     clear();
     switch(status){
-        case -1:log(ERROR, "exit fail");break;
-        case  0:log(INFO,  "exit sucess");break;
-        
-        default:log(INFO, "recv sig %d exit sucess", status);break;
+        case -1:
+        case  0:
+        default:break;
     }
-    log(INFO, "schedule to next");
-
+    
     #ifdef STACK_SEPARATE
     #ifdef STACK_CHECK
-    long sp = (long)(Scheduler::Instance()->getStack() + SCH_STACK_SIZE - 8);
+    long sp = (long)(Scheduler::Instance()->getStack() + SCH_STACK_SIZE);
     #else
     long sp = (long)(Scheduler::Instance()->getStack() + SCH_STACK_SIZE);
     #endif
@@ -280,14 +253,12 @@ void cexit(int status){
     asm("movq %0,%%rsp;"::"m"(sp));
     #endif
     #endif
-    
+    if(last != NULL){
+        //now we can delete last coroutine safely on current coroutine stack
+        delete last;
+    }
     last = current;
-    
     schedule();
-}
-
-void stopCoroutines(){
-    Scheduler::Instance()->stop();
 }
 
 void startCoroutine(){

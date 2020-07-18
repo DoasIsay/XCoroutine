@@ -12,7 +12,6 @@
 #include <stdarg.h>
 #include <time.h>
 
-
 extern int gettid();
 extern int getcid();
 
@@ -20,7 +19,6 @@ extern int getcid();
 #define WARN "WARN", __FILE__, __LINE__
 #define ERROR "ERROR", __FILE__, __LINE__
 #define DEBUG "DEBUG", __FILE__, __LINE__
-
 
 static inline void logPrint(const char* lev, const char *file, int line, const char *format, ...){
     char buf[256];

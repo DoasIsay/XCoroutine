@@ -11,7 +11,9 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <assert.h>
 #include "context.h"
+
 
 enum{
     NEW,
@@ -25,10 +27,15 @@ enum{
 typedef int(*Routine)(void *);
 
 class Coroutine{
+public:
+    #ifdef STACK_CHECK
+    long lowMagic;
+    #endif
+    
 private:
     friend void startCoroutine();
     friend struct compare;
-
+    
     int state;
     int prio;
     
@@ -51,6 +58,12 @@ private:
     bool  intr;
     time_t timeout;
     
+public:
+    #ifdef STACK_CHECK
+    long highMagic;
+    #endif
+    
+private:
     Coroutine(const Coroutine &) = delete;
     Coroutine &operator=(const Coroutine&) = delete;
 
@@ -167,17 +180,37 @@ public:
     ~Coroutine();
 };
 
-extern __thread Coroutine *current;
-
-Coroutine *createCoroutine(int (*routine)(void *), void *arg);
-
-int getcid();
-int gettid();
-
 struct compare{
     bool operator()(Coroutine* &left, Coroutine* &right){
         return left->timeout > right->timeout;
     }
 };
+
+int getcid();
+int gettid();
+
+extern __thread Coroutine *current;
+
+extern int waitOnTimer(int timeout);
+extern void wakeup(Coroutine *co);
+extern void stopCoroutines();
+
+Coroutine *createCoroutine(int (*routine)(void *), void *arg);
+
+#define yield\
+	do{\
+		if(current == NULL){\
+			current = new Coroutine();\
+			current->start();\
+		}\
+		waitOnTimer(0);\
+	}while(0)
+
+#define resume(co)\
+	do{\
+		if(co != NULL){\
+            wakeup(co)\
+		}\
+	}while(0)
 
 #endif

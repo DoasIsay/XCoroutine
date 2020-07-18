@@ -49,10 +49,13 @@ int ckill(Coroutine *co, int signo){
     if(signo == 0) return 0;
     co->setSignal(signo);
     addToSigQue(co);
+    STACK_OVERFLOW_CHECK;
     return 0;
 }
 
 int ckill(int cid, int signo){
+    STACK_OVERFLOW_CHECK;
+    
     Coroutine *co = CorMap::Instance()->get(cid);
     if(co != NULL){
         if(signo == 0) return 0;
@@ -64,6 +67,7 @@ int ckill(int cid, int signo){
 int csignal(int signo, SignalHandler handler){
     assert(signo < 32 && signo >= 0);
     signalHandler[signo] = handler;
+    STACK_OVERFLOW_CHECK;
 }
 
 extern void cexit(int status);
@@ -74,7 +78,7 @@ void sigdefHandler(int signo){
 
 void doSignal(){
     int signal = current->getSignal();
-    if(signal == 0) goto out;
+    if(signal == 0) return_check();
     
     for(int signo=1; signo<32; signo++){
         if(!(signal & (1 << signo))) continue;
@@ -82,8 +86,6 @@ void doSignal(){
         signalHandler[signo](signo);
     }
     current->setSignal(0);
-    
-out:    
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
+    return_check();
 }
 

@@ -33,7 +33,7 @@ int setNoBlock(int fd, int block=1) {
     int flags;
     if ((flags = fcntl(fd, F_GETFL)) == -1) {
         log(ERROR, "fcntl get fd %d error %s", fd, strerror(errno));
-        return -1;
+        return_check(-1);
     }
 
     if(block)
@@ -42,9 +42,9 @@ int setNoBlock(int fd, int block=1) {
         flags &= ~O_NONBLOCK;
     if (fcntl(fd, F_SETFL, flags) == -1) {
        log(ERROR, "fcntl set fd %d error %s", fd, strerror(errno));
-       return -1;
+       return_check(-1);
     }
-    return 0;
+    return_check(0);
 }
 
 int socket(int domain, int type, int protocol){
@@ -54,7 +54,7 @@ int socket(int domain, int type, int protocol){
     
     setNoBlock(fd);
     
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
+    STACK_OVERFLOW_CHECK;
     return fd;
 }
 
@@ -63,11 +63,13 @@ int listen(int sockfd, int backlog){
     if(!current || ret == -1)
         return ret;
     
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
+    STACK_OVERFLOW_CHECK;
     return ret;
 }
 
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen){
+    STACK_OVERFLOW_CHECK;
+    
     int ret = sysConnect(sockfd, addr, addrlen);
     if(!current)
         return ret;
@@ -75,21 +77,19 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen){
     int error = -1;
     socklen_t len = sizeof(error);
     if(ret != -1)
-        goto out;
+        return_check(ret);
     if(errno != EINPROGRESS)
-        goto out;
+        return_check(ret);
     if(waitOnWrite(sockfd) < 0)
-        goto out;
+        return_check(ret);
     
     ret = getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, &len);
     if(ret < 0)
-        goto out;
+        return_check(ret);
     if(error != 0)
        errno = error;
     
-out:
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
-    return ret;
+    return_check(ret);
 }
 
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen){
@@ -99,18 +99,14 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen){
     
     if(fd != -1){
         setNoBlock(fd);
-        goto out;
+        return_check(fd);
     }
     if(errno != EAGAIN)
-        goto out;
+        return_check(-1);
     if(waitOnRead(sockfd) < 0)
-        goto out;
+        return_check(-1);
     
     return accept(sockfd, addr, addrlen);
-    
-out:
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
-    return fd;
 }
 
 ssize_t read(int fd, void *buf, size_t count){
@@ -118,18 +114,13 @@ ssize_t read(int fd, void *buf, size_t count){
     if(!current)
         return ret;
 
-    if(ret != -1)
-        goto out;
-    if(errno != EAGAIN)
-        goto out;
+    if(ret != -1 || errno != EAGAIN)
+        return_check(ret);
+    STACK_OVERFLOW_CHECK;
     if(waitOnRead(fd) < 0)
-        goto out;
+        return_check(ret);
     
     return read(fd, buf, count);
-    
-out:
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
-    return ret;
 }
 
 ssize_t write(int fd, const void *buf, size_t count){
@@ -137,18 +128,13 @@ ssize_t write(int fd, const void *buf, size_t count){
     if(!current)
         return ret;
     
-    if(ret != -1)
-        goto out;
-    if(errno != EAGAIN)
-        goto out;
+    if(ret != -1 || errno != EAGAIN)
+        return_check(ret);
+
     if(waitOnWrite(fd) < 0)
-        goto out;
+        return_check(ret);
     
     return write(fd, buf, count);
-    
-out:
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
-    return ret;
 }
 
 int close(int fd){
@@ -165,8 +151,7 @@ unsigned int sleep(unsigned int seconds){
     else
         ret = waitOnTimer(seconds + time(NULL));
     
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());  
-    return ret;
+    return_check(ret);
 }
 
 int dup(int oldfd){
@@ -178,7 +163,6 @@ int dup(int oldfd){
         setNoBlock(fd);
     }
     
-    STACK_OVERFLOW_CHECK(current->getStack(), current->getStackSize());
-    return fd;
+    return_check(fd);
 }
 

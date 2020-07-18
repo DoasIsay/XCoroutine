@@ -1,6 +1,8 @@
-#include "scheduler.h"
 #include <iostream>
 #include <signal.h>
+#include "coroutine.h"
+#include "log.h"
+
 using namespace std;
 
 int test1(void *){

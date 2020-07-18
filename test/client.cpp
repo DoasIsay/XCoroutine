@@ -8,8 +8,10 @@
 #include <time.h>
 #include <string.h>
 #include <stdlib.h>
-#include "scheduler.h"
 #include <signal.h>
+#include "coroutine.h"
+#include "log.h"
+
 
 bool isExit = false;
 
@@ -38,11 +40,11 @@ int readWriteRoutine(void *arg){
     
     while(!isExit){
         int ret = write(fd,buf,sizeof(buf));
-        if(ret < 0){
+        if(ret <= 0){
              log(ERROR, "fd:%d read error:%s", fd, strerror(errno));
              break;
         }
-        //log(INFO, "fd:%d send %s\n", fd, buf);
+        log(INFO, "fd:%d send %s\n", fd, buf);
         
         ret = read(fd,buf,sizeof(buf));
         if(ret < 0){
@@ -51,6 +53,7 @@ int readWriteRoutine(void *arg){
         }
     }
     close(fd);
+    return 0;
 }
 
 void quit(int signo)

@@ -1,12 +1,14 @@
+#include <stdlib.h>
 #include <errno.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <signal.h>
 #include <pthread.h>
-#include "scheduler.h"
+#include "coroutine.h"
+#include "log.h"
 
 bool isExit = false;
-extern int setNoBlock(int fd, int block=1);
+
 int socketHandleCoroutine(void *arg){
     char buf[256];
     int fd = *(int*)arg;
@@ -19,14 +21,14 @@ int socketHandleCoroutine(void *arg){
             break;
         else if(ret < 0){
             log(ERROR, "fd:%d read error:%s\n", fd, strerror(errno));
-            break;
+            exit(-1);
         }
         log(INFO, "fd:%d recv %s", fd, buf);
         
         ret = write(fd, buf, 19);
         if(ret <= 0){
             log(ERROR, "fd:%d write error:%s\n", fd, strerror(errno));
-            break;
+            exit(-1);
         }
     }
     close(fd);
@@ -51,11 +53,12 @@ int acceptCoroutine(void *arg){
     }
     
     close(serverFd);
+    return 0;
 }
 
 void quit(int signo)
 {
-	isExit = true;
+    isExit = true;
     stopCoroutines();
 }
 
@@ -71,7 +74,8 @@ void *fun(void *arg){
 }
 
 int main(int argc, char** argv){
-    signal(SIGTERM,quit);
+    signal(SIGINT, quit);
+    signal(SIGTERM, quit);
     
     int  serverFd;
     struct sockaddr_in  addr;

@@ -8,8 +8,8 @@
 typedef void (*SignalHandler)(int);
 extern SignalHandler signalHandler[];
 
+void doSignal();
 int ckill(int cid, int signo);
 int ckill(Coroutine *co, int signo);
 int csignal(int signo, SignalHandler handler);
-void doSignal();
 void sigdefHandler(int signo);
