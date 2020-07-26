@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include "context.h"
+#include "queue.h"
 
 
 enum{
@@ -20,18 +21,16 @@ enum{
     RUNNABLE,
     RUNNING,
     WAITING,
+    STOPPING,
     STOPPED,
     DEAD
 };
 
 typedef int(*Routine)(void *);
 
+class Scheduler;
+
 class Coroutine{
-public:
-    #ifdef STACK_CHECK
-    long lowMagic;
-    #endif
-    
 private:
     friend void startCoroutine();
     friend struct compare;
@@ -58,14 +57,11 @@ private:
     bool  intr;
     time_t timeout;
     
-public:
-    #ifdef STACK_CHECK
-    long highMagic;
-    #endif
+    Scheduler *schdeuler;
     
 private:
     Coroutine(const Coroutine &) = delete;
-    Coroutine &operator=(const Coroutine&) = delete;
+    Coroutine &operator=(const Coroutine&) = delete;
 
 private:
     void init(Routine routine, void *arg, int prio, int cid);
@@ -129,6 +125,10 @@ public:
         return id.cid;
     }
 
+    void setGroupid(pid_t gid){
+        groupid = gid;
+    }
+    
     pid_t getGroupid(){
         return groupid;
     }
@@ -177,6 +177,15 @@ public:
     int getPrio(){
         return prio;
     }
+    
+    void setSched(Scheduler* sched){
+        schdeuler = sched;
+    }
+    
+    Scheduler* getSched(){
+        return schdeuler;
+    }
+    
     ~Coroutine();
 };
 
@@ -191,9 +200,12 @@ int gettid();
 
 extern __thread Coroutine *current;
 
-extern int waitOnTimer(int timeout);
 extern void wakeup(Coroutine *co);
 extern void stopCoroutines();
+extern int  waitOnTimer(int timeout);
+extern int  ckill(Coroutine *co, int signo);
+extern int  ckill(int cid, int signo);
+extern int  csignal(int signo, void (*handler)(int));
 
 Coroutine *createCoroutine(int (*routine)(void *), void *arg);
 
@@ -201,7 +213,6 @@ Coroutine *createCoroutine(int (*routine)(void *), void *arg);
 	do{\
 		if(current == NULL){\
 			current = new Coroutine();\
-			current->start();\
 		}\
 		waitOnTimer(0);\
 	}while(0)

@@ -27,7 +27,7 @@ static int allocCid(Coroutine *co){
     locker.unlock();
     return cid; 
 }
-
+extern Queue<Coroutine*> *getSigQue();
 void Coroutine::init(Routine routine, void *arg,
         int prio, int cid){
     type = -1;
@@ -46,10 +46,7 @@ void Coroutine::init(Routine routine, void *arg,
     groupid = syscall(__NR_gettid);
     setState(NEW);
     setPrio(prio);
-    
-    #ifdef STACK_CHECK
-    lowMagic = highMagic = 0x0123456789abcde0;
-    #endif
+    schdeuler = NULL;
 }
 
 
@@ -63,7 +60,6 @@ Coroutine::Coroutine(){
 
 extern void startCoroutine();
 extern void addToRunQue(Coroutine *co);
-extern int  ckill(Coroutine *co, int signo);
 
 int Coroutine::start(){
     if(getcid() < 0) return -1;
@@ -71,14 +67,9 @@ int Coroutine::start(){
     save(&context);
     context.pc = (long)startCoroutine;
 
-    if(stack == NULL) stack = allocMem(stackSize);
+    if(stack == NULL) stack = (char*)malloc(stackSize);
     assert(stack != NULL);
-
-    #ifdef STACK_CHECK
-    context.sp = (long)(stack + stackSize - 8);
-    #else
     context.sp = (long)(stack + stackSize);
-    #endif
     
     setState(RUNNABLE);
     addToRunQue(this);
@@ -86,13 +77,14 @@ int Coroutine::start(){
 }
 
 void Coroutine::stop(){
-    ckill(this, SIGTERM);
+    ckill(this,SIGTERM);
     setState(STOPPED);
 }
 
 Coroutine::~Coroutine(){
-    STACK_OVERFLOW_CHECK;
-    if(stack != NULL) freeMem(stack, stackSize);
+    assert(stack != NULL);
+    if(stack != NULL) free(stack);
+    stack = NULL;
 }
 
 Coroutine *createCoroutine(int (*routine)(void *), void *arg){
@@ -110,3 +102,4 @@ int gettid(){
     if(current == NULL) return syscall(__NR_gettid);
     return current->getGroupid();
 }
+

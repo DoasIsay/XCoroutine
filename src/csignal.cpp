@@ -7,6 +7,7 @@
 #include <assert.h>
 #include "csignal.h"
 #include "cormap.h"
+#include "scheduler.h"
 
 SignalHandler signalHandler[32] = {sigdefHandler,
                                    sigdefHandler,
@@ -48,14 +49,14 @@ int ckill(Coroutine *co, int signo){
     assert(co != NULL);
     if(signo == 0) return 0;
     co->setSignal(signo);
-    addToSigQue(co);
-    STACK_OVERFLOW_CHECK;
+    if(getcid() == co->getcid()) return 0;
+
+    assert(co->getSched() != NULL);
+    co->getSched()->addToSigQue(co);
     return 0;
 }
 
 int ckill(int cid, int signo){
-    STACK_OVERFLOW_CHECK;
-    
     Coroutine *co = CorMap::Instance()->get(cid);
     if(co != NULL){
         if(signo == 0) return 0;
@@ -67,7 +68,7 @@ int ckill(int cid, int signo){
 int csignal(int signo, SignalHandler handler){
     assert(signo < 32 && signo >= 0);
     signalHandler[signo] = handler;
-    STACK_OVERFLOW_CHECK;
+    
 }
 
 extern void cexit(int status);
@@ -78,7 +79,7 @@ void sigdefHandler(int signo){
 
 void doSignal(){
     int signal = current->getSignal();
-    if(signal == 0) return_check();
+    if(signal == 0) return;
     
     for(int signo=1; signo<32; signo++){
         if(!(signal & (1 << signo))) continue;
@@ -86,6 +87,6 @@ void doSignal(){
         signalHandler[signo](signo);
     }
     current->setSignal(0);
-    return_check();
+    return;
 }
 

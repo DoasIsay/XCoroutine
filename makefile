@@ -10,8 +10,8 @@ OBJS =  $(patsubst %.S,%.o,$(SSRC)) $(patsubst %.cpp,%.o,$(CPPSRC))
 INCLUDES = -I./test -I./include
 LIBS = -L./
 
-CFLAGS = -g -std=c++0x -fPIC -shared  -DSCH_PRIO_SIZE=8 -DSCH_STACK_SIZE=4096 -DCOR_STACK_SIZE=10240 -DSTACK_CHECK -fstack-protector-all
-LFLAGS = -g $(LIBS) -ltoco -DSTACK_CHECK -fstack-protector-all
+CFLAGS = -g -std=c++0x -fPIC -shared  -DSCH_PRIO_SIZE=8 -DSCH_STACK_SIZE=81920 -DCOR_STACK_SIZE=8192  -fstack-protector-all -lpthread -DSTACK_SEPARATE
+LFLAGS = -g $(LIBS) -ltoco  -fstack-protector-all
 
 %.o:%.cpp
 	g++ -c $(CFLAGS) $(INCLUDES) $< -o $@

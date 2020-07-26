@@ -7,7 +7,7 @@
 #include "coroutine.h"
 #include "log.h"
 
-bool isExit = false;
+volatile bool isExit = false;
 
 int socketHandleCoroutine(void *arg){
     char buf[256];
@@ -21,14 +21,14 @@ int socketHandleCoroutine(void *arg){
             break;
         else if(ret < 0){
             log(ERROR, "fd:%d read error:%s\n", fd, strerror(errno));
-            exit(-1);
+            break;
         }
         log(INFO, "fd:%d recv %s", fd, buf);
         
         ret = write(fd, buf, 19);
         if(ret <= 0){
             log(ERROR, "fd:%d write error:%s\n", fd, strerror(errno));
-            exit(-1);
+            break;
         }
     }
     close(fd);

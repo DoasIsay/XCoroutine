@@ -32,9 +32,10 @@ public:
         assert(item != NULL);
         if(isLinked(item))
             return;
-        item->next = NULL;
+        
 
         locker.lock();
+        item->next = NULL;
         if(tail == NULL){
             head = tail = item;
         }else{
@@ -46,8 +47,8 @@ public:
     }
 
     T pop(){
-        T item = NULL;
         locker.lock();
+        T item = NULL;
         if(head != NULL){
             item = head;
             head = head->next;
@@ -60,9 +61,9 @@ public:
         return item;
     }
 
-	int size(){
-		return sizes;
-	}
+    int size(){
+        return sizes;
+    }
 	
     bool empty(){
         return size() == 0;

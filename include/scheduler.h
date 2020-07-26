@@ -20,19 +20,25 @@
 #include "epoll.h"
 #include "log.h"
 
+static inline void clear(Coroutine *co);
 
 class Scheduler{
 private:
     int idx;
+    int load;
     int running;
-    volatile static int state;
+    int runables;
     
-    friend void addToSigQue(Coroutine *co);
-    friend void addToTimerQue(Coroutine *co);
+    volatile static int Load;
+    volatile static int State;
+    volatile static int threads;
     
     Queue<Coroutine*> runQue[2][SCH_PRIO_SIZE];
-    static Queue<Coroutine*, SpinLocker> sigQue;
-    
+
+    friend void addToRunQue(Coroutine *co);
+
+    Queue<Coroutine*> sigQue;
+    static Queue<Coroutine*, SpinLocker> RunQue;
     std::priority_queue<Coroutine*, std::vector<Coroutine*>, compare> timerQue;
     
     int epfd;
@@ -74,6 +80,12 @@ public:
     void eventProcess();
     
     void signalProcess();
+
+    void relax();
+    
+    Coroutine* stress();
+    
+    Coroutine* loadbalance();
     
     pid_t getGrouid(){
         return groupid;
@@ -88,31 +100,43 @@ public:
     Coroutine* next();
     
     void addToRunQue(Coroutine *co){
+        runables++;
         runQue[!running][co->getPrio()].push(co);
     }
+
+    void addToSigQue(Coroutine *co){
+       sigQue.push(co);
+    }
     
+    void bind(Coroutine* co){
+        co->setGroupid(groupid);
+        co->setSched(this);       
+    }
+    
+    void unbind(Coroutine* co){
+        if(co->getEpfd() != -1) clear(co);
+        co->setGroupid(0);
+        co->setSched(NULL);
+    }
+
     ~Scheduler();
 };
 
 void addToRunQue(Coroutine *co);
-void addToSigQue(Coroutine *co);
-void addToTimerQue(Coroutine *co);
 
 void stopCoroutines();
 
 extern __thread Coroutine *last;
 
 static inline int wait(int fd, int type, int timeout){
-    int ret = 0;
     assert(current != NULL);
     if(save(current->getContext())){
-        if(current->getIntr()){
-            current->setIntr(false);
-            return_check(-1);
-        }
-        return_check(1);
+        if(!current->getIntr())
+            return(1);
+        current->setIntr(false);
+        return(-1);
     }
-
+    
     #ifdef STACK_SEPARATE
     long sp = (long)(Scheduler::Instance()->getStack() + SCH_STACK_SIZE);
     //switch coroutine stack to scheduler stack
@@ -127,11 +151,11 @@ static inline int wait(int fd, int type, int timeout){
 }
 
 static inline int waitOnRead(int fd){
-    return_check(wait(fd, EVENT::READABLE, 0));
+    return(wait(fd, EVENT::READABLE, 0));
 }
 
 static inline int waitOnWrite(int fd){
-    return_check(wait(fd, EVENT::WRITEABLE, 0));
+    return(wait(fd, EVENT::WRITEABLE, 0));
 }
 
 int  waitOnTimer(int timeout);
@@ -139,21 +163,39 @@ int  waitOnTimer(int timeout);
 void wakeup(Coroutine *co);
 
 static inline void schedule(){
+#ifdef STACK_SEPARATE
+    long sp = (long)(Scheduler::Instance()->getStack() + SCH_STACK_SIZE);
+    //switch coroutine stack to scheduler stack
+#ifdef __i386__
+    asm("movl %0,%%esp;"::"m"(sp));
+#elif __x86_64__
+    asm("movq %0,%%rsp;"::"m"(sp));
+#endif
+#endif
+
     Scheduler::Instance()->schedule();
 }
 
+static inline void clear(Coroutine *co){
+    if(!co)
+        return;
+    
+    CorMap::Instance()->del(co->getcid());
+    if(co->getEpfd() > 0){
+        epollDelEvent(co->getEpfd(), co->getFd(), co->getType());
+        co->setEpfd(-1);
+    }
+    return;
+}
 
 static inline void clear(){
-    if(!current) return_check();
-    CorMap::Instance()->del(current->getcid());
-    if(current->getEpfd() > 0){
-        epollDelEvent(current->getEpfd(), current->getFd(), current->getType());
-        current->setEpfd(-1);
-    }
-    return_check();
+    if(!current)
+        return;
+    clear(current);
 }
 
 void cexit(int status);
 void startCoroutine();
 
 #endif
+

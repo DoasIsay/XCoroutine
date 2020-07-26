@@ -8,21 +8,27 @@
 #include "scheduler.h"
 #include "csignal.h"
 #include <time.h>
+#include <stdlib.h>
+#include "syscall.h"
 
 #define INTHZ 10
+#define LOADBALANCE_FACTOR 1
 
 __thread Coroutine *last = NULL;
 
 __thread Scheduler* Scheduler::instance = NULL;
 
-Queue<Coroutine*, SpinLocker> Scheduler::sigQue;
+Queue<Coroutine*, SpinLocker> Scheduler::RunQue;
 
-volatile int Scheduler::state = DEAD;
+volatile int Scheduler::Load = 0;
+volatile int Scheduler::State = DEAD;
+volatile int Scheduler::threads = 0;
 
 Scheduler::Scheduler(int max =1024){
     idx = 0;
-    state = NEW;
+    State = NEW;
     running = 0;
+    load = 0;
     
     maxEventSize = max;
     epfd = epollCreate(max);
@@ -31,15 +37,16 @@ Scheduler::Scheduler(int max =1024){
     groupid = syscall(__NR_gettid);
     
     #ifdef STACK_SEPARATE
-    stack = allocMem(SCH_STACK_SIZE);
+    stack = (char*)malloc(SCH_STACK_SIZE);
     #endif
+    __sync_fetch_and_add(&threads,1);
 }
 
-#define setEvent(epfd, fd, type)\
+#define setEvent(co, epfd, fd, type)\
         do{\
-            current->setFd(fd);\
-            current->setType(type);\
-            current->setEpfd(epfd);\
+            co->setFd(fd);\
+            co->setType(type);\
+            co->setEpfd(epfd);\
         }while(0)
 
 int Scheduler::wait(int fd, int type, int timeout){
@@ -47,7 +54,7 @@ int Scheduler::wait(int fd, int type, int timeout){
         current->setState(WAITING);
         if(current->getEpfd() < 0){
             CorMap::Instance()->del(current->getcid());
-            setEvent(epfd, fd, type);
+            setEvent(current, epfd, fd, type);
             epollAddEvent(epfd, fd, type);
             CorMap::Instance()->set(fd, current);
         }else if(current->getType() != type){
@@ -65,8 +72,6 @@ int Scheduler::wait(int fd, int type, int timeout){
         timerQue.push(current);
     }
     
-    STACK_OVERFLOW_CHECK;
-    
     schedule();
 }
 
@@ -74,15 +79,11 @@ inline void Scheduler::wakeup(Coroutine *co){
     current = co;
     assert(co != NULL);
     assert(co->getState() != DEAD);
+    assert(co->getState() != RUNNING);
     
-    if(getcid() == 0)
-        state = DEAD;
-    else if(state != STOPPED &&
-        state != DEAD){
-        state = RUNNABLE;
-    }
+    if(getcid() == 0) State = DEAD;
+    else if(State == RUNNING) State = RUNNABLE;
     
-    STACK_OVERFLOW_CHECK;
     co->setState(RUNNING);
     restore(co->getContext(), (long)doSignal);
 }
@@ -91,21 +92,65 @@ Coroutine* Scheduler::next(){
     Coroutine *co = NULL;
     
     for(; idx < SCH_PRIO_SIZE; idx++){
-        if(runQue[running][idx].empty())
-            continue;
+        if(runQue[running][idx].empty()) continue;
         co = runQue[running][idx].pop();
-        break;
+        runables--;
+        return co;
     }
     idx = 0;
     running = !running;
-
-    return_check(co);
+    
+    return co;
 }
 
-void Scheduler::runProcess(){
-    Coroutine *co= next();
-    if(co == NULL) return_check();
+void Scheduler::relax(){
+    if(State != RUNNING || CorMap::Instance()->empty()) return;
 
+    int half = runables / 2;
+    for(; half > 0 ; half--){
+        Coroutine *co = next();
+        if(co == NULL) break;
+        
+        if(co->getcid() == 0){
+            addToRunQue(co);
+            continue;
+        }
+        
+        unbind(co);
+        RunQue.push(co);
+        log(INFO,"relax %d %d %d",co->getcid(),load, Load);
+    }
+    
+    if(!half) load = load / 2;
+}
+
+inline Coroutine* Scheduler::stress(){
+    if(RunQue.empty()) return NULL;
+    
+    Coroutine *co = RunQue.pop();
+    if(co == NULL) return NULL;
+    
+    bind(co);
+    return co;
+}
+
+inline Coroutine *Scheduler::loadbalance(){
+    if(threads > 0 && State == RUNNING && load > LOADBALANCE_FACTOR && Load < LOADBALANCE_FACTOR)
+        relax();
+    
+    Coroutine *co = next();
+    if(co == NULL && ( load < LOADBALANCE_FACTOR || State != RUNNING || threads == 1))
+        return stress();
+    
+    return co;
+}
+
+inline void Scheduler::runProcess(){
+    
+    Coroutine *co = loadbalance();
+    if(co == NULL) return;
+
+    
     if(co->getcid() != 0 ||
         CorMap::Instance()->empty()){
         wakeup(co);
@@ -113,66 +158,69 @@ void Scheduler::runProcess(){
         addToRunQue(co);
     }
     
-    return_check();
+    return;
 }
 
 inline void Scheduler::timerProcess(){
     Coroutine *co = NULL;
-    if(state != RUNNING || timerQue.empty())
-        return_check();
+    if(State != RUNNING || timerQue.empty())
+        return;
     
     co = timerQue.top();
     if(co->getTimeout() > time(NULL))
-        return_check();
+        return;
     
     timerQue.pop();
     co->setState(RUNNABLE);
     co->setTimeout(0);
     addToRunQue(co);
     
-    return_check();
+    return;
 }
 
-void Scheduler::eventProcess(){  
-    if(state != RUNNING) return_check();
+void Scheduler::eventProcess(){
+    if(State != RUNNING) return;
     
     int firedEventSize = epollWait(epfd,
                                    events,
                                    maxEventSize,
                                    INTHZ);
+    if(firedEventSize == 0){
+        if(load > 0) load--;
+        if(Load > 0) Load--;
+    }else if(firedEventSize == maxEventSize){
+        load++;
+        Load++;
+    }
+
     int nextEventIdx = 0;
     for(; nextEventIdx < firedEventSize; nextEventIdx++){
         Coroutine *co = NULL;
-        
         co = (Coroutine*)events[nextEventIdx].data.ptr;
         assert(co->getState() != DEAD);
         co->setState(RUNNABLE);
         addToRunQue(co);
     }
     
-    return_check();
+    return;
 }
 
-void Scheduler::signalProcess(){
+inline void Scheduler::signalProcess(){
+    //在多线程环境下，sigQue为非线程安全，在异步信号处理函数中调用stop()操作sigQue时要阻止其它线程同时操作sigQue
+    if(State == STOPPING) return;
+    
     Coroutine *co = sigQue.pop();
-    if(co == NULL) return_check();
+    if(co == NULL) return;
     
-    if(true || co->getGroupid() == groupid){
-        if(co->getState() == WAITING) co->setIntr(true);
-        
-        co->setState(RUNNABLE);
-        assert(co->getGroupid() != 0);
-        addToRunQue(co);
-    }else{
-        sigQue.push(co);
-    }
-    
-    return_check();
+    assert(co->getState() != DEAD);
+    co->setIntr(true);
+    co->setState(RUNNABLE);
+    addToRunQue(co);
+    return;
 }
 
 void Scheduler::schedule(){
-    if(state != STOPPED && state != DEAD)
-        state = RUNNING;
+    if(State == RUNNABLE || State == NEW) State = RUNNING;
     
     while(true){
         runProcess();
@@ -180,57 +228,59 @@ void Scheduler::schedule(){
         eventProcess();
         signalProcess();
     }
+    
 }
 
 void Scheduler::stop(){
-    state = STOPPED;
+    State = STOPPING;
+
+    //处于全局共享队列中的协程还没有绑定到调度器线程，等待调度器线程调度绑定这些协程
+    if(!RunQue.empty()){
+        log(WARN, "can`t stop immediately, the global RunQue size is %d, please stop it again late", RunQue.size());
+        return;
+    }
+
+    //暂停一下尽可能等待其它调度器 线程检测到State == STOPPING
+    sysSleep(1);
     
     while(true){
         Coroutine *co = CorMap::Instance()->next();
-        if(co == NULL) return_check();
+        if(co == NULL) break;
         co->stop();
     }
+    State = STOPPED;
 }
 
 Scheduler::~Scheduler(){
     close(epfd);
     free(events);
     #ifdef STACK_SEPARATE
-    freeMem(stack, SCH_STACK_SIZE);
+    free(stack);
     #endif
+    __sync_fetch_and_sub(&threads,1);
 }
 
 void addToRunQue(Coroutine *co){
-    Scheduler::Instance()->addToRunQue(co);
-    return_check();
-}
-
-void addToSigQue(Coroutine *co){
-    Scheduler::Instance()->sigQue.push(co);
-    return_check();
-}
-
-void addToTimerQue(Coroutine *co){
-    Scheduler::Instance()->timerQue.push(co);
-    return_check();
+    Scheduler::Instance()->RunQue.push(co);
+    return;
 }
 
 int waitOnTimer(int timeout){
-    return_check(wait(-1, -1, timeout));
+    return(wait(-1, -1, timeout));
 }
 
 void wakeup(Coroutine *co){
     Scheduler::Instance()->wakeup(co);
-    return_check();
+    return;
 }
 
 void stopCoroutines(){
     Scheduler::Instance()->stop();
-    return_check();
+    return;
 }
 
 void cexit(int status){
-    STACK_OVERFLOW_CHECK;
+    
     current->setState(DEAD);
     clear();
     switch(status){
@@ -239,20 +289,6 @@ void cexit(int status){
         default:break;
     }
     
-    #ifdef STACK_SEPARATE
-    #ifdef STACK_CHECK
-    long sp = (long)(Scheduler::Instance()->getStack() + SCH_STACK_SIZE);
-    #else
-    long sp = (long)(Scheduler::Instance()->getStack() + SCH_STACK_SIZE);
-    #endif
-    
-    //switch coroutine stack to scheduler stack
-    #ifdef __i386__
-    asm("movl %0,%%esp;"::"m"(sp));
-    #elif __x86_64__
-    asm("movq %0,%%rsp;"::"m"(sp));
-    #endif
-    #endif
     if(last != NULL){
         //now we can delete last coroutine safely on current coroutine stack
         delete last;
