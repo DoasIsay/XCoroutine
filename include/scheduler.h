@@ -14,24 +14,24 @@
 #include <queue>
 #include "coroutine.h"
 #include "context.h"
-#include "memory.h"
 #include "cormap.h"
 #include "queue.h"
 #include "epoll.h"
 #include "log.h"
+#include "load.h"
 
 static inline void clear(Coroutine *co);
 
 class Scheduler{
 private:
     int idx;
-    int load;
     int running;
     int runables;
+
+    Load load;
     
-    volatile static int Load;
     volatile static int State;
-    volatile static int threads;
+    volatile static int Threads;
     
     Queue<Coroutine*> runQue[2][SCH_PRIO_SIZE];
 
@@ -115,7 +115,6 @@ public:
     
     void unbind(Coroutine* co){
         if(co->getEpfd() != -1) clear(co);
-        co->setGroupid(0);
         co->setSched(NULL);
     }
 
@@ -134,7 +133,7 @@ static inline int wait(int fd, int type, int timeout){
         if(!current->getIntr())
             return(1);
         current->setIntr(false);
-        return(-1);
+        return -1;
     }
     
     #ifdef STACK_SEPARATE

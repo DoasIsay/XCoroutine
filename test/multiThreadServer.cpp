@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include "coroutine.h"
 #include "log.h"
+#include "syscall.h"
 
 volatile bool isExit = false;
 
@@ -13,21 +14,21 @@ int socketHandleCoroutine(void *arg){
     char buf[256];
     int fd = *(int*)arg;
     
-    log(INFO, "start socketHandleCoroutine fd:%d", fd);
+    //log(INFO, "start socketHandleCoroutine fd:%d", fd);
     
     while(!isExit){
         int ret = read(fd, buf, 19);
         if(ret == 0)
             break;
         else if(ret < 0){
-            log(ERROR, "fd:%d read error:%s\n", fd, strerror(errno));
+            //log(ERROR, "fd:%d read error:%s\n", fd, strerror(errno));
             break;
         }
-        log(INFO, "fd:%d recv %s", fd, buf);
+        //log(INFO, "fd:%d recv %s", fd, buf);
         
         ret = write(fd, buf, 19);
         if(ret <= 0){
-            log(ERROR, "fd:%d write error:%s\n", fd, strerror(errno));
+            //log(ERROR, "fd:%d write error:%s\n", fd, strerror(errno));
             break;
         }
     }
@@ -44,10 +45,10 @@ int acceptCoroutine(void *arg){
         int *clientFd = new int;
         
         if((*clientFd = accept(serverFd, NULL ,NULL)) != -1){
-            log(INFO, "accept fd %d", *clientFd);
+            //log(INFO, "accept fd %d", *clientFd);
             createCoroutine(socketHandleCoroutine, (void*)clientFd);
         }else{
-            log(ERROR, "accept error:%s", strerror(errno));
+            //log(ERROR, "accept error:%s", strerror(errno));
             break;
         }
     }
@@ -73,9 +74,19 @@ void *fun(void *arg){
     log(INFO, "exit sucess");
 }
 
+void *fun1(void *arg){
+
+    sysSleep(60);
+    yield;
+    
+    log(INFO, "exit sucess");
+}
+
+
 int main(int argc, char** argv){
     signal(SIGINT, quit);
     signal(SIGTERM, quit);
+    signal(SIGPIPE, SIG_IGN);
     
     int  serverFd;
     struct sockaddr_in  addr;
@@ -99,9 +110,9 @@ int main(int argc, char** argv){
     }
     
     pthread_t t0,t1,t2;
-    pthread_create(&t0, NULL, fun, &serverFd);
-    pthread_create(&t1, NULL, fun, &serverFd);
-    pthread_create(&t2, NULL, fun, &serverFd);
+    pthread_create(&t0, NULL, fun , &serverFd);
+    pthread_create(&t1, NULL, fun1, NULL);
+    pthread_create(&t2, NULL, fun1, NULL);
     
     pthread_join(t0, NULL);
     pthread_join(t1, NULL);

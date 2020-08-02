@@ -82,6 +82,7 @@ void quit(int signo)
 int main(int argc, char** argv){
     signal(SIGINT, quit);
     signal(SIGTERM, quit);
+    signal(SIGPIPE, SIG_IGN);
     
     Coroutine *co = createCoroutine(acceptCoroutine, NULL);
     co->setPrio(1);

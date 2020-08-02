@@ -15,7 +15,6 @@
 #include "context.h"
 #include "queue.h"
 
-
 enum{
     NEW,
     RUNNABLE,
@@ -219,9 +218,9 @@ Coroutine *createCoroutine(int (*routine)(void *), void *arg);
 
 #define resume(co)\
 	do{\
-		if(co != NULL){\
+        if(co != NULL){\
             wakeup(co)\
-		}\
-	}while(0)
-
+        }\
+    }while(0)
+    
 #endif

@@ -9,10 +9,12 @@
 #include "csignal.h"
 #include <time.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include "syscall.h"
 
 #define INTHZ 10
-#define LOADBALANCE_FACTOR 1
 
 __thread Coroutine *last = NULL;
 
@@ -20,15 +22,13 @@ __thread Scheduler* Scheduler::instance = NULL;
 
 Queue<Coroutine*, SpinLocker> Scheduler::RunQue;
 
-volatile int Scheduler::Load = 0;
 volatile int Scheduler::State = DEAD;
-volatile int Scheduler::threads = 0;
+volatile int Scheduler::Threads = 0;
 
 Scheduler::Scheduler(int max =1024){
     idx = 0;
     State = NEW;
     running = 0;
-    load = 0;
     
     maxEventSize = max;
     epfd = epollCreate(max);
@@ -39,7 +39,7 @@ Scheduler::Scheduler(int max =1024){
     #ifdef STACK_SEPARATE
     stack = (char*)malloc(SCH_STACK_SIZE);
     #endif
-    __sync_fetch_and_add(&threads,1);
+    __sync_fetch_and_add(&Threads,1);
 }
 
 #define setEvent(co, epfd, fd, type)\
@@ -78,8 +78,8 @@ int Scheduler::wait(int fd, int type, int timeout){
 inline void Scheduler::wakeup(Coroutine *co){
     current = co;
     assert(co != NULL);
-    assert(co->getState() != DEAD);
-    assert(co->getState() != RUNNING);
+    //assert(co->getState() == RUNNABLE);
+    if(co->getState() != RUNNABLE) return;
     
     if(getcid() == 0) State = DEAD;
     else if(State == RUNNING) State = RUNNABLE;
@@ -105,7 +105,7 @@ Coroutine* Scheduler::next(){
 
 void Scheduler::relax(){
     if(State != RUNNING || CorMap::Instance()->empty()) return;
-
+    
     int half = runables / 2;
     for(; half > 0 ; half--){
         Coroutine *co = next();
@@ -118,10 +118,8 @@ void Scheduler::relax(){
         
         unbind(co);
         RunQue.push(co);
-        log(INFO,"relax %d %d %d",co->getcid(),load, Load);
+        log(INFO,"releax %d sys %d proc %d thread %d", co->getcid(), load.sysUsage, load.procUsage, load.threadUsage);
     }
-    
-    if(!half) load = load / 2;
 }
 
 inline Coroutine* Scheduler::stress(){
@@ -129,27 +127,42 @@ inline Coroutine* Scheduler::stress(){
     
     Coroutine *co = RunQue.pop();
     if(co == NULL) return NULL;
+
+    //避免刚刚relax又stress的情况
+    if(co->getGroupid() == groupid){
+        RunQue.push(co);
+        return NULL;
+    }
+    
     
     bind(co);
+    log(INFO,"stress %d sys %d proc %d thread %d", co->getcid(), load.sysUsage, load.procUsage, load.threadUsage);
     return co;
 }
 
 inline Coroutine *Scheduler::loadbalance(){
-    if(threads > 0 && State == RUNNING && load > LOADBALANCE_FACTOR && Load < LOADBALANCE_FACTOR)
+    if(Threads > 1 &&
+        State == RUNNING &&
+        load.threadUsage > LOADBALANCE_FACTOR && 
+        load.procUsage < (Threads -1) * LOADBALANCE_FACTOR
+        )
         relax();
     
     Coroutine *co = next();
-    if(co == NULL && ( load < LOADBALANCE_FACTOR || State != RUNNING || threads == 1))
+    if(co == NULL &&
+        (Threads == 1 ||
+        load.threadUsage < LOADBALANCE_FACTOR ||
+        State != RUNNING)
+        ){
+        
         return stress();
-    
+        }
     return co;
 }
 
 inline void Scheduler::runProcess(){
-    
     Coroutine *co = loadbalance();
     if(co == NULL) return;
-
     
     if(co->getcid() != 0 ||
         CorMap::Instance()->empty()){
@@ -185,14 +198,10 @@ void Scheduler::eventProcess(){
                                    events,
                                    maxEventSize,
                                    INTHZ);
-    if(firedEventSize == 0){
-        if(load > 0) load--;
-        if(Load > 0) Load--;
-    }else if(firedEventSize == maxEventSize){
-        load++;
-        Load++;
-    }
-
+    
+    if(load.cacl())
+        log(INFO,"sys %d proc %d thread %d", load.sysUsage, load.procUsage, load.threadUsage);
+    
     int nextEventIdx = 0;
     for(; nextEventIdx < firedEventSize; nextEventIdx++){
         Coroutine *co = NULL;
@@ -233,19 +242,21 @@ void Scheduler::schedule(){
 
 void Scheduler::stop(){
     State = STOPPING;
-
+    
     //处于全局共享队列中的协程还没有绑定到调度器线程，等待调度器线程调度绑定这些协程
     if(!RunQue.empty()){
         log(WARN, "can`t stop immediately, the global RunQue size is %d, please stop it again late", RunQue.size());
         return;
     }
 
-    //暂停一下尽可能等待其它调度器 线程检测到State == STOPPING
+    //暂停一下尽可能等待其它调度器线程检测到State == STOPPING
     sysSleep(1);
     
     while(true){
         Coroutine *co = CorMap::Instance()->next();
+        
         if(co == NULL) break;
+        //log(INFO,"stop coroutine %d",co->getcid());
         co->stop();
     }
     State = STOPPED;
@@ -257,7 +268,7 @@ Scheduler::~Scheduler(){
     #ifdef STACK_SEPARATE
     free(stack);
     #endif
-    __sync_fetch_and_sub(&threads,1);
+    __sync_fetch_and_sub(&Threads,1);
 }
 
 void addToRunQue(Coroutine *co){
@@ -280,8 +291,7 @@ void stopCoroutines(){
 }
 
 void cexit(int status){
-    
-    current->setState(DEAD);
+    current->setState(STOPPED);
     clear();
     switch(status){
         case -1:
@@ -290,6 +300,7 @@ void cexit(int status){
     }
     
     if(last != NULL){
+        assert(!isLinked(last));
         //now we can delete last coroutine safely on current coroutine stack
         delete last;
     }

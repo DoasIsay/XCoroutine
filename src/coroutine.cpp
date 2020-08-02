@@ -23,7 +23,7 @@ static int allocCid(Coroutine *co){
     static SpinLocker locker;
     locker.lock();
     for(cid = CorMap::STARTCID ; corMap->get(cid) != NULL; ++cid);
-    CorMap::Instance()->set(cid, co);
+    corMap ->set(cid, co);
     locker.unlock();
     return cid; 
 }
@@ -43,8 +43,9 @@ void Coroutine::init(Routine routine, void *arg,
     this->routine = routine;
     
     id.cid = cid;
-    groupid = syscall(__NR_gettid);
-    setState(NEW);
+    groupid = 0;
+    
+    state = NEW;
     setPrio(prio);
     schdeuler = NULL;
 }
@@ -66,7 +67,7 @@ int Coroutine::start(){
     
     save(&context);
     context.pc = (long)startCoroutine;
-
+    
     if(stack == NULL) stack = (char*)malloc(stackSize);
     assert(stack != NULL);
     context.sp = (long)(stack + stackSize);
@@ -77,13 +78,15 @@ int Coroutine::start(){
 }
 
 void Coroutine::stop(){
+    if(state == DEAD) return;
+    setState(STOPPING);
     ckill(this,SIGTERM);
-    setState(STOPPED);
 }
 
 Coroutine::~Coroutine(){
+    setState(DEAD);
     assert(stack != NULL);
-    if(stack != NULL) free(stack);
+    free(stack);
     stack = NULL;
 }
 

@@ -41,14 +41,14 @@ int readWriteRoutine(void *arg){
     while(!isExit){
         int ret = write(fd,buf,sizeof(buf));
         if(ret <= 0){
-             log(ERROR, "fd:%d read error:%s", fd, strerror(errno));
+             log(ERROR, "fd:%d write error:%s", fd, strerror(errno));
              break;
         }
         log(INFO, "fd:%d send %s\n", fd, buf);
         
         ret = read(fd,buf,sizeof(buf));
         if(ret < 0){
-             log(ERROR, "fd:%d write error:%s", fd, strerror(errno));
+             log(ERROR, "fd:%d read error:%s", fd, strerror(errno));
              break;
         }
     }
@@ -66,6 +66,7 @@ int main(int argvs, char *argv[])
 {
     signal(SIGINT, quit);
     signal(SIGTERM, quit);
+    signal(SIGPIPE, SIG_IGN);
 
     for(int i=0; i<10000 && !isExit; i++)       
     createCoroutine(readWriteRoutine, NULL);

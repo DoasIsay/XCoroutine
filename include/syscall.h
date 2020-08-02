@@ -7,6 +7,7 @@
 
 #ifndef __SYSCALL__
 #define __SYSCALL__
+
 typedef int (*SysClose)(int fd);
 typedef int (*SysDup)(int oldfd);
 typedef int (*SysListen)(int sockfd, int backlog);
