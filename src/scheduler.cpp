@@ -61,12 +61,10 @@ int Scheduler::wait(int fd, int type, int timeout){
             current->setType(type);
             epollModEvent(epfd, fd, type);
         }
-    }else if(timeout <= 0){
+    }else if(timeout == 0){
         current->setState(RUNNABLE);
         addToRunQue(current);
-    }
-    
-    if(timeout > 0){
+    }else if(timeout > 0){
         current->setTimeout(timeout);
         current->setState(WAITING);
         timerQue.push(current);
@@ -76,16 +74,11 @@ int Scheduler::wait(int fd, int type, int timeout){
 }
 
 inline void Scheduler::wakeup(Coroutine *co){
-    current = co;
     assert(co != NULL);
     //assert(co->getState() == RUNNABLE);
-    if(co->getState() != RUNNABLE) return;
     
-    if(getcid() == 0) State = DEAD;
-    else if(State == RUNNING) State = RUNNABLE;
-    
-    co->setState(RUNNING);
-    restore(co->getContext(), (long)doSignal);
+    co->setState(RUNNABLE);
+    addToRunQue(co);
 }
 
 Coroutine* Scheduler::next(){
@@ -120,6 +113,8 @@ void Scheduler::relax(){
         RunQue.push(co);
         log(INFO,"releax %d sys %d proc %d thread %d", co->getcid(), load.sysUsage, load.procUsage, load.threadUsage);
     }
+    
+    load.threadUsage -= 10;
 }
 
 inline Coroutine* Scheduler::stress(){
@@ -127,13 +122,16 @@ inline Coroutine* Scheduler::stress(){
     
     Coroutine *co = RunQue.pop();
     if(co == NULL) return NULL;
-
-    //避免刚刚relax又stress的情况
+    
+    //避免刚刚relax又stress的情况，SYNCING状态的协程是在等待mutex/cond，尽量不要因为等待mutex/cond而造成协程组的切换
+    //SYNCING状态的协程不能被跨线程调度
     if(co->getGroupid() == groupid){
+        if(co->getState() == SYNCING)
+        return co;
+    }else if(co->getState() == SYNCING){
         RunQue.push(co);
         return NULL;
     }
-    
     
     bind(co);
     log(INFO,"stress %d sys %d proc %d thread %d", co->getcid(), load.sysUsage, load.procUsage, load.threadUsage);
@@ -144,8 +142,8 @@ inline Coroutine *Scheduler::loadbalance(){
     if(Threads > 1 &&
         State == RUNNING &&
         load.threadUsage > LOADBALANCE_FACTOR && 
-        load.procUsage < (Threads -1) * LOADBALANCE_FACTOR
-        )
+        load.procUsage < Threads * LOADBALANCE_FACTOR
+      )
         relax();
     
     Coroutine *co = next();
@@ -153,11 +151,24 @@ inline Coroutine *Scheduler::loadbalance(){
         (Threads == 1 ||
         load.threadUsage < LOADBALANCE_FACTOR ||
         State != RUNNING)
-        ){
-        
-        return stress();
-        }
+      )
+        co = stress();
     return co;
+}
+
+inline void Scheduler::switch_(Coroutine *co){
+    //if(co->getState() != RUNNABLE)
+     //   return;
+    
+    current = co;
+    
+    if(getcid() == 0)
+        State = DEAD;
+    else if(State == RUNNING)
+        State = RUNNABLE;
+    
+    co->setState(RUNNING);
+    restore(co->getContext(), (long)doSignal);        
 }
 
 inline void Scheduler::runProcess(){
@@ -166,7 +177,7 @@ inline void Scheduler::runProcess(){
     
     if(co->getcid() != 0 ||
         CorMap::Instance()->empty()){
-        wakeup(co);
+        switch_(co);
     }else{
         addToRunQue(co);
     }
@@ -184,9 +195,8 @@ inline void Scheduler::timerProcess(){
         return;
     
     timerQue.pop();
-    co->setState(RUNNABLE);
     co->setTimeout(0);
-    addToRunQue(co);
+    wakeup(co);
     
     return;
 }
@@ -200,15 +210,13 @@ void Scheduler::eventProcess(){
                                    INTHZ);
     
     if(load.cacl())
-        log(INFO,"sys %d proc %d thread %d", load.sysUsage, load.procUsage, load.threadUsage);
+        log(INFO, "threads %d sys %d proc %d thread %d", Threads, load.sysUsage, load.procUsage, load.threadUsage);
     
     int nextEventIdx = 0;
     for(; nextEventIdx < firedEventSize; nextEventIdx++){
         Coroutine *co = NULL;
         co = (Coroutine*)events[nextEventIdx].data.ptr;
-        assert(co->getState() != DEAD);
-        co->setState(RUNNABLE);
-        addToRunQue(co);
+        wakeup(co);
     }
     
     return;
@@ -223,8 +231,7 @@ inline void Scheduler::signalProcess(){
     
     assert(co->getState() != DEAD);
     co->setIntr(true);
-    co->setState(RUNNABLE);
-    addToRunQue(co);
+    wakeup(co);
     return;
 }
 
@@ -237,7 +244,6 @@ void Scheduler::schedule(){
         eventProcess();
         signalProcess();
     }
-    
 }
 
 void Scheduler::stop(){
@@ -245,10 +251,10 @@ void Scheduler::stop(){
     
     //处于全局共享队列中的协程还没有绑定到调度器线程，等待调度器线程调度绑定这些协程
     if(!RunQue.empty()){
-        log(WARN, "can`t stop immediately, the global RunQue size is %d, please stop it again late", RunQue.size());
+        log(WARN, "can`t stop immediately, the global RunQue size is %d, please stop it again laterly", RunQue.size());
         return;
     }
-
+    
     //暂停一下尽可能等待其它调度器线程检测到State == STOPPING
     sysSleep(1);
     
@@ -268,7 +274,7 @@ Scheduler::~Scheduler(){
     #ifdef STACK_SEPARATE
     free(stack);
     #endif
-    __sync_fetch_and_sub(&Threads,1);
+    __sync_fetch_and_sub(&Threads, 1);
 }
 
 void addToRunQue(Coroutine *co){
@@ -281,7 +287,7 @@ int waitOnTimer(int timeout){
 }
 
 void wakeup(Coroutine *co){
-    Scheduler::Instance()->wakeup(co);
+    addToRunQue(co);
     return;
 }
 

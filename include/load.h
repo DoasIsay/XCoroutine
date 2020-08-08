@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) 2020, xie wenwu <870585356@qq.com>
+ * 
+ * All rights reserved.
+ */
+
+#ifndef __LOAD__
+#define __LOAD__
+
 #include <stdio.h>
 #include <unistd.h>
 #include <time.h>
@@ -73,7 +82,7 @@ private:
     void openStat();
     void closeStat();
     
-    inline unsigned long getTaskTime(int fd);
+    unsigned long getTaskTime(int fd);
     
 public:
     Stat(){
@@ -105,12 +114,13 @@ public:
 
 class Load{
 private:
+    int statCount;
     Stat stat;
     time_t statTime;
     unsigned long threadT1, threadT2, procT1, procT2, cpuT1, cpuT2, idleT1, idleT2;
 
 public:
-    int procUsage, threadUsage, sysUsage;
+    int procUsage, procUsage_, threadUsage, threadUsage_, sysUsage, sysUsage_;
     int cpuCount;
     
 public:
@@ -121,3 +131,4 @@ public:
     ~Load(){}
 };
 
+#endif

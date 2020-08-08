@@ -66,6 +66,8 @@ public:
     }
 
     void stop();
+
+    void switch_(Coroutine *co);
     
     void wakeup(Coroutine *co);
     

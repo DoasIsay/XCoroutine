@@ -20,6 +20,7 @@ enum{
     RUNNABLE,
     RUNNING,
     WAITING,
+    SYNCING,
     STOPPING,
     STOPPED,
     DEAD

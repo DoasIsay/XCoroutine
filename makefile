@@ -1,5 +1,5 @@
 
-all:libtoco.so yield server client multiThreadServer sleep signal prio
+all:libtoco.so yield server client multiThreadServer sleep signal prio mutex cond
 
 SSRC = $(wildcard  ./src/*.S)
 
@@ -15,7 +15,7 @@ CFLAGS = -g -std=c++0x -fPIC -shared -fstack-protector-all -lpthread\
 			-DSCH_STACK_SIZE=8192\
 			-DCOR_STACK_SIZE=8192\
 			-DSTACK_SEPARATE\
-			-DLOADBALANCE_FACTOR=90
+			-DLOADBALANCE_FACTOR=95
 			
 LFLAGS = -g $(LIBS) -ltoco  -fstack-protector-all
 
@@ -48,6 +48,12 @@ signal:$(OBJS)
 
 prio:$(OBJS)
 	g++ $(LFLAGS) -o prio ./test/prio.o
+
+mutex:$(OBJS)
+	g++ $(LFLAGS) -o mutex ./test/mutex.o
+
+cond:$(OBJS)
+	g++ $(LFLAGS) -o cond ./test/cond.o
 	
 clean:
-	rm -rf ./src/*.o ./test/*.o libtoco.so yield client server multiThreadServer sleep signal prio
+	rm -rf ./src/*.o ./test/*.o libtoco.so yield client server multiThreadServer sleep signal prio mutex cond
