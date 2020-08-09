@@ -11,50 +11,34 @@ using namespace std;
 bool isExit = false;
 
 int i =0;
-Mutex mutex;
-Cond condNotFull, condNotEmpty;
+SpinLocker locker;
+Sem sem(10);
 list<int> que;
 
 int producer(void *){
     while(!isExit){
-        mutex.lock();
-        
-        while(que.size() == 10 && !isExit){
-            log(INFO, "que full %d wait", que.size());
-            condNotFull.wait(mutex);
-            log(INFO, "wakeup");
-        }
-        
+        sem.wait();
+
+        locker.lock();
         int tmp = i++;
         que.push_back(i);
         log(INFO, "producer %d", tmp);
-
-        mutex.unlock();
-        condNotEmpty.signal();
+        locker.unlock();
     }
-    condNotEmpty.broadcast();
 }
 
 int consumer(void *){
     while(!isExit){
-        mutex.lock();
-        
-        while(que.empty() && !isExit){
-            log(INFO, "que empty %d wait", que.size());
-            condNotEmpty.wait(mutex);
-            log(INFO, "wakeup");
-        }
-
+        locker.lock();
         if(!que.empty()){
             int tmp = que.front();
             log(INFO, "consumer %d", tmp);
             que.pop_front();
         }
+        locker.unlock();
         
-        mutex.unlock();
-        condNotFull.signal();
+        sem.signal();
     }
-    condNotFull.broadcast();
 }
 
 
@@ -100,3 +84,4 @@ int main(){
     
     log(INFO, "exit sucess");
 }
+

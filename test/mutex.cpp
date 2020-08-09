@@ -2,7 +2,7 @@
 #include <signal.h>
 #include <pthread.h>
 #include "coroutine.h"
-#include "mutex.h"
+#include "sync.h"
 #include "log.h"
 
 using namespace std;
@@ -16,7 +16,7 @@ int i =0;
 int test(void *){
     while(!isExit){
         mutex.lock();
-        if(i == 10000000){
+        if(i == 1000000000){
             break;
         }
         i++;

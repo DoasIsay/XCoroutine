@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <memory.h>
 #include <assert.h>
-#include "locker.h"
+#include "sync/locker.h"
 
 class Map{
 private:

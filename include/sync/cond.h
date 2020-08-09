@@ -10,10 +10,12 @@
 #include "mutex.h"
 
 class Cond{
-public:
+private:
     Queue<Coroutine*, SpinLocker> waitQue;
-    
+
+public:
     void signal(){
+        if(waitQue.empty()) return;
         Coroutine *co = waitQue.pop();
         if(co != NULL){
             wakeup(co);
@@ -28,7 +30,8 @@ public:
             wakeup(co);
         }    
     }
-    
+
+    //返回值-1，被信号中断或超时
     int wait(Mutex &mutex, int timeout = -1){
         waitQue.push(current);
         

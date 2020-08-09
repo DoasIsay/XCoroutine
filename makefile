@@ -1,5 +1,5 @@
 
-all:libtoco.so yield server client multiThreadServer sleep signal prio mutex cond
+all:libtoco.so yield server client multiThreadServer sleep signal prio mutex cond sem
 
 SSRC = $(wildcard  ./src/*.S)
 
@@ -54,6 +54,9 @@ mutex:$(OBJS)
 
 cond:$(OBJS)
 	g++ $(LFLAGS) -o cond ./test/cond.o
+
+sem:$(OBJS)
+	g++ $(LFLAGS) -o sem ./test/sem.o
 	
 clean:
-	rm -rf ./src/*.o ./test/*.o libtoco.so yield client server multiThreadServer sleep signal prio mutex cond
+	rm -rf ./src/*.o ./test/*.o libtoco.so yield client server multiThreadServer sleep signal prio mutex cond sem

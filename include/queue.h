@@ -8,7 +8,7 @@
 #define __QUEUE__
 //a first in first out queue, only used when item is point
 
-#include "locker.h"
+#include "sync/locker.h"
 
 template<class T>
 bool isLinked(T item){

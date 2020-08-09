@@ -20,15 +20,16 @@ extern int gettid();
 class Mutex:public Locker{
 private:
     SpinLocker locker;
-
     volatile int ownCid;
     volatile int ownTid;
-
+    
     SpinLocker gaurd;
     Queue<Coroutine*> waitQue;
 
 public:
     void lock(){
+        if(ownCid == getcid()) return;
+        
         while(!trylock()){
             /*gaurd用来保证 1.trylock获取锁失败 2.push到waitQue的两个操作的原子性，同时保护waitQue
               可防止在另一个线程中的协程unlock发生在第2步操作前
@@ -39,7 +40,6 @@ public:
                 gaurd.unlock();
                 goto out;
             }
-
             /*不能在waitOnTimer中修改协程的状态，此协程有可能被另一个线程中的协程signal唤醒
               导致同一个协程被多个线程调度，所以应在push到waitQue前就修改状态
              */
@@ -48,7 +48,8 @@ public:
             log(INFO, "lock fail ownCid %d ownTid %d, wait for it", ownCid, ownTid);
             gaurd.unlock();  
             
-            waitOnTimer(-1);
+            if(waitOnTimer(-1) < 0)//被信号中断返回 
+                return;
         }
     out:
         ownCid = getcid();
@@ -59,12 +60,11 @@ public:
         gaurd.lock();
         
         Coroutine *co = waitQue.pop();
+        locker.unlock();
         ownCid = 0;
         ownTid = 0;
-        locker.unlock();
 
         gaurd.unlock();
-
         if(co == NULL) return;
         wakeup(co);
         log(INFO, "unlock wakeup %d", co->getcid());
