@@ -16,13 +16,15 @@ int i =0;
 int test(void *){
     while(!isExit){
         mutex.lock();
+        
         if(i == 1000000000){
+            mutex.unlock();
             break;
         }
         i++;
+        
         mutex.unlock();
     }
-    mutex.unlock();
 }
 
 void *fun(void *){

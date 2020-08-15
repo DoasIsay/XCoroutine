@@ -16,6 +16,7 @@ private:
 public:
     void signal(){
         if(waitQue.empty()) return;
+        
         Coroutine *co = waitQue.pop();
         if(co != NULL){
             wakeup(co);
@@ -32,14 +33,22 @@ public:
     }
 
     //返回值-1，被信号中断或超时
-    int wait(Mutex &mutex, int timeout = -1){
+    int wait(Locker &locker, int timeout = -1){
+        current->setState(SYNCING);
         waitQue.push(current);
         
-        mutex.unlock();
+        locker.unlock();
         int ret = waitOnTimer(timeout);
-        mutex.lock();
+        locker.lock();
 
         return ret;
+    }
+
+    int wait(int timeout = -1){
+        current->setState(SYNCING);
+        waitQue.push(current);
+        
+        return waitOnTimer(timeout);
     }
 };
 

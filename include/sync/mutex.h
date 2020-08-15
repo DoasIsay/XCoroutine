@@ -58,8 +58,10 @@ public:
     
     void unlock(){
         gaurd.lock();
-        
-        Coroutine *co = waitQue.pop();
+
+        Coroutine *co = NULL;
+        if(!waitQue.empty()) co = waitQue.pop();
+ 
         locker.unlock();
         ownCid = 0;
         ownTid = 0;

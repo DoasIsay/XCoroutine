@@ -1,2 +1,2 @@
 # ToyCoroutine
-a simple c++ coroutine lib, just for fun, you can treat it as a toy
+a simple c++ coroutine lib, just for fun, you can treat it as a toy, but not a toy

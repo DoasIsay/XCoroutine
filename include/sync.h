@@ -2,5 +2,6 @@
 #define __SYNC__
 
 #include "sync/sem.h"
+#include "sync/countDownLatch.h"
 
 #endif

@@ -22,8 +22,9 @@ __thread Scheduler* Scheduler::instance = NULL;
 
 Queue<Coroutine*, SpinLocker> Scheduler::RunQue;
 
+Atomic Scheduler::Threads;
+
 volatile int Scheduler::State = DEAD;
-volatile int Scheduler::Threads = 0;
 
 Scheduler::Scheduler(int max =1024){
     idx = 0;
@@ -39,7 +40,7 @@ Scheduler::Scheduler(int max =1024){
     #ifdef STACK_SEPARATE
     stack = (char*)malloc(SCH_STACK_SIZE);
     #endif
-    __sync_fetch_and_add(&Threads,1);
+    Threads.inc();
 }
 
 #define setEvent(co, epfd, fd, type)\
@@ -50,7 +51,17 @@ Scheduler::Scheduler(int max =1024){
         }while(0)
 
 int Scheduler::wait(int fd, int type, int timeout){
-    if(fd > 0){
+
+    if(timeout > 0){
+        current->setTimeout(timeout);
+        current->setState(WAITING);
+        timerQue.push(current);
+    }
+
+    if(timeout == 0){
+        current->setState(RUNNABLE);
+        addToRunQue(current);
+    }else if(fd > 0){
         current->setState(WAITING);
         if(current->getEpfd() < 0){
             CorMap::Instance()->del(current->getcid());
@@ -61,13 +72,6 @@ int Scheduler::wait(int fd, int type, int timeout){
             current->setType(type);
             epollModEvent(epfd, fd, type);
         }
-    }else if(timeout == 0){
-        current->setState(RUNNABLE);
-        addToRunQue(current);
-    }else if(timeout > 0){
-        current->setTimeout(timeout);
-        current->setState(WAITING);
-        timerQue.push(current);
     }
     
     schedule();
@@ -75,7 +79,6 @@ int Scheduler::wait(int fd, int type, int timeout){
 
 inline void Scheduler::wakeup(Coroutine *co){
     assert(co != NULL);
-    //assert(co->getState() == RUNNABLE);
     
     co->setState(RUNNABLE);
     addToRunQue(co);
@@ -139,33 +142,28 @@ inline Coroutine* Scheduler::stress(){
 }
 
 inline Coroutine *Scheduler::loadbalance(){
-    if(Threads > 1 &&
+    if(Threads.get() > 1 &&
         State == RUNNING &&
         load.threadUsage > LOADBALANCE_FACTOR && 
-        load.procUsage < Threads * LOADBALANCE_FACTOR
-      )
+        load.procUsage < Threads.get() * LOADBALANCE_FACTOR
+    )
         relax();
     
     Coroutine *co = next();
     if(co == NULL &&
-        (Threads == 1 ||
+        (Threads.get() == 1 ||
         load.threadUsage < LOADBALANCE_FACTOR ||
         State != RUNNING)
-      )
+    )
         co = stress();
     return co;
 }
 
-inline void Scheduler::switch_(Coroutine *co){
-    //if(co->getState() != RUNNABLE)
-     //   return;
-    
+inline void Scheduler::switch_(Coroutine *co){    
     current = co;
     
-    if(getcid() == 0)
-        State = DEAD;
-    else if(State == RUNNING)
-        State = RUNNABLE;
+    if(getcid() == 0) State = DEAD;
+    else if(State == RUNNING) State = RUNNABLE;
     
     co->setState(RUNNING);
     restore(co->getContext(), (long)doSignal);        
@@ -181,18 +179,14 @@ inline void Scheduler::runProcess(){
     }else{
         addToRunQue(co);
     }
-    
-    return;
 }
 
 inline void Scheduler::timerProcess(){
     Coroutine *co = NULL;
-    if(State != RUNNING || timerQue.empty())
-        return;
+    if(State != RUNNING || timerQue.empty()) return;
     
     co = timerQue.top();
-    if(co->getTimeout() > time(NULL))
-        return;
+    if(co->getTimeout() > time(NULL)) return;
     
     timerQue.pop();
     co->setTimeout(0);
@@ -209,8 +203,8 @@ void Scheduler::eventProcess(){
                                    maxEventSize,
                                    INTHZ);
     
-    if(load.cacl())
-        log(INFO, "threads %d sys %d proc %d thread %d", Threads, load.sysUsage, load.procUsage, load.threadUsage);
+    if(load.cacl());
+        log(INFO, "threads %d sys %d proc %d thread %d", Threads.get(), load.sysUsage, load.procUsage, load.threadUsage);
     
     int nextEventIdx = 0;
     for(; nextEventIdx < firedEventSize; nextEventIdx++){
@@ -224,6 +218,7 @@ void Scheduler::eventProcess(){
 
 inline void Scheduler::signalProcess(){
     //在多线程环境下，sigQue为非线程安全，在异步信号处理函数中调用stop()操作sigQue时要阻止其它线程同时操作sigQue
+    //如果使用线程安全的sigQue有可能导致死锁
     if(State == STOPPING) return;
     
     Coroutine *co = sigQue.pop();
@@ -269,12 +264,13 @@ void Scheduler::stop(){
 }
 
 Scheduler::~Scheduler(){
+    //never happen
     close(epfd);
     free(events);
     #ifdef STACK_SEPARATE
     free(stack);
     #endif
-    __sync_fetch_and_sub(&Threads, 1);
+    Threads.dec();
 }
 
 void addToRunQue(Coroutine *co){
@@ -283,10 +279,13 @@ void addToRunQue(Coroutine *co){
 }
 
 int waitOnTimer(int timeout){
-    return(wait(-1, -1, timeout));
+    return wait(-1, -1, timeout);
 }
 
 void wakeup(Coroutine *co){
+    //处于SYNCING状态的协程恢复运行可不必转变为RUNNABLE状态
+    if(co->getState() != SYNCING) co->setState(RUNNABLE);
+    
     addToRunQue(co);
     return;
 }
@@ -298,7 +297,7 @@ void stopCoroutines(){
 
 void cexit(int status){
     current->setState(STOPPED);
-    clear();
+    clear(current);
     switch(status){
         case -1:
         case  0:

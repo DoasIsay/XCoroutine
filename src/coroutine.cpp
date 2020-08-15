@@ -11,7 +11,6 @@
 #include <assert.h>
 #include "coroutine.h"
 #include "cormap.h"
-#include "memory.h"
 
 const static int DEF_PRIO = SCH_PRIO_SIZE/2;
 
@@ -27,7 +26,7 @@ static int allocCid(Coroutine *co){
     locker.unlock();
     return cid; 
 }
-extern Queue<Coroutine*> *getSigQue();
+
 void Coroutine::init(Routine routine, void *arg,
         int prio, int cid){
     type = -1;
@@ -60,7 +59,7 @@ Coroutine::Coroutine(){
 }
 
 extern void startCoroutine();
-extern void addToRunQue(Coroutine *co);
+extern void wakeup(Coroutine *co);
 
 int Coroutine::start(){
     if(getcid() < 0) return -1;
@@ -72,13 +71,13 @@ int Coroutine::start(){
     assert(stack != NULL);
     context.sp = (long)(stack + stackSize);
     
-    setState(RUNNABLE);
-    addToRunQue(this);
+    wakeup(this);
     return 0;
 }
 
 void Coroutine::stop(){
     if(state == DEAD) return;
+    
     setState(STOPPING);
     ckill(this,SIGTERM);
 }
@@ -91,7 +90,7 @@ Coroutine::~Coroutine(){
 }
 
 Coroutine *createCoroutine(int (*routine)(void *), void *arg){
-    Coroutine *co= new Coroutine(routine,arg);
+    Coroutine *co= new Coroutine(routine, arg);
     co->start();
     return co;
 }
@@ -102,7 +101,8 @@ int getcid(){
 }
 
 int gettid(){
-    if(current == NULL) return syscall(__NR_gettid);
-    return current->getGroupid();
+    int tid;
+    if(current == NULL ||(tid = current->getGroupid()) == 0) return syscall(__NR_gettid);
+    return tid;
 }
 

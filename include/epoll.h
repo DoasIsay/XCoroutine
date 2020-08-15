@@ -13,9 +13,7 @@
 #include "cormap.h"
 #include "log.h"
 
-namespace EVENT{
-    enum {READABLE = EPOLLIN, WRITEABLE = EPOLLOUT};
-};
+enum {READABLE = EPOLLIN, WRITEABLE = EPOLLOUT};
 
 class Coroutine;
 extern __thread Coroutine *current;
@@ -27,7 +25,7 @@ static inline int epollCreate(int max){
 static inline int eventCtl(int epollFd, int fd, int type, int mode){
     epoll_event event;
     event.events = type|EPOLLET;
-    if(type == EVENT::WRITEABLE) event.events |= EPOLLONESHOT;
+    if(type == WRITEABLE) event.events |= EPOLLONESHOT;
     assert(current!=NULL);
     event.data.ptr = current;
     int ret = epoll_ctl(epollFd, mode, fd, &event);

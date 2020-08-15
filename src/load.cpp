@@ -115,8 +115,8 @@ bool Load::cacl(){
     procT1 = procT2;
     idleT1 = idleT2;
     threadT1 = threadT2;
-
-    if(statCount == 30){
+    
+    if(statCount == 10){
         sysUsage = sysUsage_ / statCount;
         procUsage = procUsage_ / statCount;
         threadUsage = threadUsage_ / statCount;
