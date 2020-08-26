@@ -135,7 +135,7 @@ unsigned int sleep(unsigned int seconds){
     if(!current)
         return sysSleep(seconds);
     else
-        ret = waitOnTimer(seconds + time(NULL));
+        ret = waitOnTimer((seconds + time(NULL))*1000);
     
     return ret;
 }

@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include "util.h"
 #include "syscall.h"
 
 #define INTHZ 10
@@ -52,16 +53,19 @@ Scheduler::Scheduler(int max =1024){
 
 int Scheduler::wait(int fd, int type, int timeout){
 
-    if(timeout > 0){
-        current->setTimeout(timeout);
-        current->setState(WAITING);
-        timerQue.push(current);
-    }
-
     if(timeout == 0){
         current->setState(RUNNABLE);
         addToRunQue(current);
-    }else if(fd > 0){
+    }else if(timeout > 0){
+        current->setTimeout(timeout);
+        current->setState(WAITING);
+        timerQue.push(current);
+    }else if(timeout < 0){
+        //timeout = -1
+        //SYNCING进行无限同步等待
+        //current->setState(SYNCING);
+    }
+    if(fd > 0){
         current->setState(WAITING);
         if(current->getEpfd() < 0){
             CorMap::Instance()->del(current->getcid());
@@ -186,7 +190,7 @@ inline void Scheduler::timerProcess(){
     if(State != RUNNING || timerQue.empty()) return;
     
     co = timerQue.top();
-    if(co->getTimeout() > time(NULL)) return;
+    if(co->getTimeout() > milliseconds()) return;
     
     timerQue.pop();
     co->setTimeout(0);
@@ -203,7 +207,7 @@ void Scheduler::eventProcess(){
                                    maxEventSize,
                                    INTHZ);
     
-    if(load.cacl());
+    if(load.cacl())
         log(INFO, "threads %d sys %d proc %d thread %d", Threads.get(), load.sysUsage, load.procUsage, load.threadUsage);
     
     int nextEventIdx = 0;
@@ -267,9 +271,9 @@ Scheduler::~Scheduler(){
     //never happen
     close(epfd);
     free(events);
-    #ifdef STACK_SEPARATE
+#ifdef STACK_SEPARATE
     free(stack);
-    #endif
+#endif
     Threads.dec();
 }
 

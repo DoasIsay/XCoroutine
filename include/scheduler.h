@@ -19,7 +19,7 @@
 #include "epoll.h"
 #include "log.h"
 #include "load.h"
-#include "atomic.h"
+#include "sync/atomic.h"
 
 static inline void clear(Coroutine *co){
     if(!co) return;
@@ -58,9 +58,9 @@ private:
     Scheduler(const Scheduler &) = delete;
     Scheduler &operator=(const Scheduler&) = delete;
 
-    #ifdef STACK_SEPARATE
+#ifdef STACK_SEPARATE
     char *stack;
-    #endif
+#endif
 
     static __thread Scheduler *instance;
     
@@ -161,11 +161,11 @@ static inline int wait(int fd, int type, int timeout){
 int waitOnTimer(int timeout);
 
 static inline int waitOnRead(int fd){
-    return wait(fd, READABLE, 0);
+    return wait(fd, READABLE, -1);
 }
 
 static inline int waitOnWrite(int fd){
-    return wait(fd, WRITEABLE, 0);
+    return wait(fd, WRITEABLE, -1);
 }
 
 void wakeup(Coroutine *co);

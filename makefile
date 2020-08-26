@@ -1,5 +1,5 @@
 
-all:libtoco.so yield server client multiThreadServer sleep signal prio mutex cond sem countDownLatch
+all:libtoco.so yield server client multiThreadServer sleep signal prio mutex cond sem countDownLatch channel
 
 SSRC = $(wildcard  ./src/*.S)
 
@@ -12,8 +12,8 @@ LIBS = -L./
 
 CFLAGS = -g -std=c++0x -fPIC -shared -fstack-protector-all -lpthread\
 			-DSCH_PRIO_SIZE=8\
-			-DSCH_STACK_SIZE=8192\
-			-DCOR_STACK_SIZE=8192\
+			-DSCH_STACK_SIZE=4096\
+			-DCOR_STACK_SIZE=4096\
 			-DSTACK_SEPARATE\
 			-DLOADBALANCE_FACTOR=95
 			
@@ -60,6 +60,9 @@ sem:$(OBJS)
 
 countDownLatch:$(OBJS)
 	g++ $(LFLAGS) -o countDownLatch ./test/countDownLatch.o
+
+channel:$(OBJS)
+	g++ $(LFLAGS) -o channel ./test/channel.o
 	
 clean:
-	rm -rf ./src/*.o ./test/*.o libtoco.so yield client server multiThreadServer sleep signal prio mutex cond sem countDownLatch
+	rm -rf ./src/*.o ./test/*.o libtoco.so yield client server multiThreadServer sleep signal prio mutex cond sem countDownLatch channel

@@ -84,7 +84,7 @@ int main(int argc, char** argv){
     signal(SIGTERM, quit);
     signal(SIGPIPE, SIG_IGN);
     
-    Coroutine *co = createCoroutine(acceptCoroutine, NULL);
+    Coroutine *co = new Coroutine(acceptCoroutine, NULL);
     co->setPrio(1);
     yield;
     

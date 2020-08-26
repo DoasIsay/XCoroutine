@@ -61,19 +61,19 @@ void Stat::getCpuStat(){
 unsigned long Stat::getTaskTime(int fd){
     char buff[512] = {0};
     
-	lseek(fd, 0, SEEK_SET);
-	read(fd, buff, 512);
+    lseek(fd, 0, SEEK_SET);
+    read(fd, buff, 512);
     
     TaskStat stat;
     sscanf(buff,"%d %s %c %d %d %d %d %d %lu %lu \                                                       
-			%lu %lu %lu %lu %lu %ld %ld %ld %ld %d %ld %llu %lu %ld %lu %lu %lu %lu %lu \
-			%lu %lu %lu %lu %lu %lu %lu %lu %d %d %lu %lu\n",
-			 &stat.pid, stat.cmd, &stat.state, &stat.ppid, &stat.group, &stat.session,
-			 &stat.tty_nr, &stat.tty_pgrp, &stat.flags, &stat.min_flt, &stat.cmin_flt, &stat.maj_flt,
-			 &stat.cmaj_flt, &stat.utime, &stat.stime, &stat.cutime, &stat.cstime, &stat.prio, &stat.nice,
-			 &stat.num_threads, &stat.it_real_value, &stat.start_time, &stat.vsize, &stat.rss, &stat.rlim_cur,
-			 &stat.start_code, &stat.end_code, &stat.tart_stack, &stat.esp, &stat.eip, &stat.pending, &stat.blocked,
-			 &stat.sigign, &stat.sigcatch, &stat.wchan, &stat.nswap, &stat.cnswap, &stat.exit_signal, &stat.cpu_num, &stat.rt_prio, &stat.policy);
+            %lu %lu %lu %lu %lu %ld %ld %ld %ld %d %ld %llu %lu %ld %lu %lu %lu %lu %lu \
+            %lu %lu %lu %lu %lu %lu %lu %lu %d %d %lu %lu\n",
+            &stat.pid, stat.cmd, &stat.state, &stat.ppid, &stat.group, &stat.session,
+            &stat.tty_nr, &stat.tty_pgrp, &stat.flags, &stat.min_flt, &stat.cmin_flt, &stat.maj_flt,
+            &stat.cmaj_flt, &stat.utime, &stat.stime, &stat.cutime, &stat.cstime, &stat.prio, &stat.nice,
+            &stat.num_threads, &stat.it_real_value, &stat.start_time, &stat.vsize, &stat.rss, &stat.rlim_cur,
+            &stat.start_code, &stat.end_code, &stat.tart_stack, &stat.esp, &stat.eip, &stat.pending, &stat.blocked,
+            &stat.sigign, &stat.sigcatch, &stat.wchan, &stat.nswap, &stat.cnswap, &stat.exit_signal, &stat.cpu_num, &stat.rt_prio, &stat.policy);
     
     return stat.utime + stat.stime + stat.cutime + stat.cstime;
 }

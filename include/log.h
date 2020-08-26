@@ -21,7 +21,7 @@ extern int getcid();
 #define DEBUG "DEBUG", __FILE__, __LINE__
 
 static inline void logPrint(const char* lev, const char *file, int line, const char *format, ...){
-    char buf[256];
+    char buf[128];
     time_t now=time(NULL);
     struct tm date;
     localtime_r(&now,&date);

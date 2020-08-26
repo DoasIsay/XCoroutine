@@ -11,7 +11,7 @@
 volatile bool isExit = false;
 
 int socketHandleCoroutine(void *arg){
-    char buf[256];
+    char buf[19];
     int fd = *(int*)arg;
     
     //log(INFO, "start socketHandleCoroutine fd:%d", fd);
@@ -48,7 +48,7 @@ int acceptCoroutine(void *arg){
             //log(INFO, "accept fd %d", *clientFd);
             createCoroutine(socketHandleCoroutine, (void*)clientFd);
         }else{
-            //log(ERROR, "accept error:%s", strerror(errno));
+            log(ERROR, "accept error:%s", strerror(errno));
             break;
         }
     }

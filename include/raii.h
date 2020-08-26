@@ -13,6 +13,7 @@ public:
 
     ~Raii(){
         locker->unlock();
+        locker = NULL;
     }
 };
 

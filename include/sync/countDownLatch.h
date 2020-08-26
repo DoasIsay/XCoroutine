@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2020, xie wenwu <870585356@qq.com>
+ * 
+ * All rights reserved.
+ */
+
 #ifndef __COUNT_DOWN_LATCH__
 #define __COUNT_DOWN_LATCH__
 
@@ -34,7 +40,7 @@ public:
         count--;
         mutex.unlock();
 
-        if(count == 0) cond.signal();
+        if(count == 0) cond.broadcast();
     }
 
     int getCount(){

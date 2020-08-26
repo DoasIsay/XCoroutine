@@ -16,7 +16,8 @@ public:
     virtual void lock(){}
     virtual void unlock(){}
     virtual bool trylock(){}
-    virtual bool state() {}
+    virtual bool state(){}
+    virtual ~Locker(){}
 };
 
 class MutexLocker:public Locker{

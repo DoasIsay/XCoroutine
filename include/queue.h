@@ -61,6 +61,20 @@ public:
         return item;
     }
 
+    void erase(T item){
+        if(!isLinked(item))
+            return;
+        
+        T cur, pre;
+        
+        locker.lock();
+        for(cur = pre = head; cur != NULL; pre = cur, cur = cur->next){
+            if(item != cur) continue;
+            pre->next = cur->next;
+        }
+        locker.unlock();
+    }
+    
     int size(){
         return sizes;
     }
