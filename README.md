@@ -1,2 +1,1 @@
-# ToyCoroutine
-a simple c++ coroutine lib, just for fun, you can treat it as a toy, but not a toy
+一个使用C/C++基于epoll实现的高性能的stackfull协程库，通过HOOK阻塞的系统调用，网络IO事件，协程间的同步事件及定时事件驱动协程的调度，通过汇编完成协程的高速切换，支持海量协程创建，支持协程的动态跨线程负载均衡调度，优先级调度，支持协程的栈上溢出检测及协程的signal信号处理机制，提供不同线程间协程同步协作的互斥量mutex，读写锁，条件变量cond，信号量sem，countDownLatch及用于数据共享的channel等等，总之很好玩，，，
